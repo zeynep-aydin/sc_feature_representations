@@ -1,3 +1,9 @@
+# do it to track large files
+# find * -size +4M -type f -print >> .gitignore
+
+# ipynb checkpoints
+.ipynb_checkpoints
+
 # History files
 .Rhistory
 .Rapp.history
