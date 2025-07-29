@@ -4,6 +4,11 @@
 # ipynb checkpoints
 .ipynb_checkpoints
 
+# Text files
+.csv
+.tsv
+.xlsx
+
 # History files
 .Rhistory
 .Rapp.history
@@ -11,6 +16,7 @@
 # Session Data files
 .RData
 .RDataTmp
+.rds
 
 # User-specific files
 .Ruserdata
