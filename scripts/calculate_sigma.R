@@ -4,8 +4,6 @@ suppressPackageStartupMessages({
   library(qs2)
 })
 
-gc(reset = TRUE)
-
 args <- commandArgs(trailingOnly = TRUE)
 input_file <- args[1]
 output_file <- args[2]
@@ -28,14 +26,9 @@ sigma <- mean(D_train)
 gamma <- 1 / sigma
 sigma_p <- gamma
 
-final_gc <- gc()
-mb_val <- which(colnames(final_gc) == "max used") + 1 # MB
-peak_memory_gb <- max(final_gc[, mb_val]) / 1024
-
 result <- list(
   sigma = sigma,
-  sigma_p = sigma_p,
-  peak_memory_gb = peak_memory_gb
+  sigma_p = sigma_p
 )
 
 qs_save(result, output_file)

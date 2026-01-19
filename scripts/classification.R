@@ -21,7 +21,7 @@ parser$add_argument("-d", "--dataset", choices = c("scea", "zhao_immune", "zilio
 parser$add_argument("-f", "--feature_mode", default = "intersection", choices = c("intersection", "thresh08"), help = "(For SCEA dataset)")
 parser$add_argument("-s", "--train_split", default = 0.8, type = "double", help = "Train split ratio")
 parser$add_argument("-n", "--n_cells", type = "integer", help = "Number of cells (If specified, will override train_split)")
-parser$add_argument("-m", "--method", choices = c("rff", "rff_gaussian", "pca", "scimilarity", "nicheformer"), help = "Approximation method (None for full data/baseline)")
+parser$add_argument("-m", "--method", choices = c("rff", "rff_gaussian", "pca", "scimilarity"), help = "Approximation method (None for full data/baseline)")
 parser$add_argument("-t", "--task", choices = c("tissue", "celltype"), help = "")
 parser$add_argument("-a", "--algorithm", default = "glmnet", choices = c("glmnet", "svm"), help = "Classification algorithm")
 parser$add_argument("-D", "--D", type = "integer", help = "Number of RFF dimensions")
@@ -96,7 +96,7 @@ train_test_split <- function(data, y, train_split = args$train_split, n_cells = 
   ))
 }
 
-if (args$dataset == "scea") { # TODO save data generically during 000_
+if (args$dataset == "scea") { 
   mtx <- qs_read(file.path(data_dir, paste0("scea_8tissues_", args$feature_mode, "_expression_matrix.qs")))
   labels <- qs_read(file.path(data_dir, paste0("scea_8tissues_", args$feature_mode, "_", args$task, "_labels.qs")))
 } else {
@@ -115,12 +115,10 @@ all_labels_factor <- as.factor(labels)
 y_train <- all_labels_factor[split_info$train_indices]
 y_test <- all_labels_factor[split_info$test_indices]
 
-# y_train <- as.factor(as.integer(labels[split_info$train_indices]))
-# y_test <- as.factor(as.integer(labels[split_info$test_indices]))
 
 rm(mtx, labels)
 
-if (!(method %in% c("scimilarity", "nicheformer"))) {
+if (!(method %in% c("scimilarity"))) {
   cat("Normalizing and scaling datasets...\n")
   X_train <- preprocessor(X_train, scale_factor = 10000)
   X_test <- preprocessor(X_test, scale_factor = 10000)
@@ -134,13 +132,10 @@ reduction_time <- 0
 reduction_seed <- NULL
 rff_metadata <- NULL
 filename_base <- "baseline"
-reduction_mem_gb <- 0
 
 if (method != "baseline") {
   reduction_start <- Sys.time()
   
-  gc(reset = TRUE)
-
   if (method %in% c("rff", "rff_gaussian")) {
 
     if (method == "rff") {
@@ -199,7 +194,6 @@ if (method != "baseline") {
 
     sigma <- sigma_results$sigma
     sigma_p <- sigma_results$sigma_p
-    child_memory_gb <- sigma_results$peak_memory_gb
     
     W <- generate_W(ncol(X_train), D, sigma_p)
     
@@ -238,7 +232,6 @@ if (method != "baseline") {
     
     filename_base <- paste0("Ncomp", n_components)
     expected_dims <- n_components
-    child_memory_gb <- 0
     
   } else if (method == "scimilarity") {
     cat("Generating SCimilarity embeddings...\n")
@@ -272,52 +265,11 @@ if (method != "baseline") {
     
     reduction_time <- h5readAttributes(embeddings_file, "/")$embedding_time
     preprocess_time <- h5readAttributes(embeddings_file, "/")$preprocess_time
-    child_memory_gb <- h5readAttributes(embeddings_file, "/")$peak_memory_gb
 
     unlink(c(indices_file, embeddings_file))
     
     filename_base <- "scimilarity"
     expected_dims <- 128
-  } 
-  
-  else if (method == "nicheformer") {
-    cat("Generating Nicheformer embeddings...\n")
-    
-    reduction_seed <- 9652 + replicate_id
-    set.seed(reduction_seed)
-    
-    temp_dir <- tempdir()
-    unique_id <- paste0(replicate_id, "_", Sys.getpid(), "_", format(Sys.time(), "%Y%m%d_%H%M%S"))
-    indices_file <- file.path(temp_dir, paste0("nicheformer_indices_", unique_id, ".h5"))
-    embeddings_file <- file.path(temp_dir, paste0("nicheformer_embeddings_", unique_id, ".h5"))
-    
-    # Save indices (convert to 0-based for Python)
-    h5createFile(indices_file)
-    h5write(as.integer(split_info$train_indices - 1), indices_file, "train_indices")
-    h5write(as.integer(split_info$test_indices - 1), indices_file, "test_indices")
-    H5close()
-    
-    python_script_path <- file.path(project_root, "get_nicheformer_embeddings.py")
-    conda_path <- "module load anaconda3/2025.06 && source /opt/ohpc/pub/compiler/conda3/latest/etc/profile.d/conda.sh && conda activate nicheformer_env"
-    
-    python_cmd <- sprintf(
-      '%s && python "%s" --data_dir "%s" --feature_mode "%s" --indices_file "%s" --output_file "%s" --seed "%d"', 
-      conda_path, python_script_path, data_dir, args$feature_mode, indices_file, embeddings_file, reduction_seed
-    )
-    
-    python_output <- system(python_cmd, intern = TRUE)
-    
-    X_train <- t(h5read(embeddings_file, "train_embeddings"))
-    X_test <- t(h5read(embeddings_file, "test_embeddings"))
-    
-    reduction_time <- h5readAttributes(embeddings_file, "/")$embedding_time
-    preprocess_time <- h5readAttributes(embeddings_file, "/")$preprocess_time
-    child_memory_gb <- h5readAttributes(embeddings_file, "/")$peak_memory_gb
-    
-    unlink(c(indices_file, embeddings_file))
-    
-    filename_base <- "nicheformer"
-    expected_dims <- 512
   } 
   
   if (is.null(X_train) || is.null(X_test) || 
@@ -328,12 +280,10 @@ if (method != "baseline") {
     quit(status = 1)
   }
   
-  mem_gb <- get_peak_ram_gb()
-  reduction_mem_gb <- max(mem_gb, child_memory_gb)
   
   cat("Dimensionality reduction successful:", nrow(X_train), "×", ncol(X_train), "\n")
   
-  if (!(method %in% c("scimilarity", "nicheformer")))  reduction_time <- as.numeric(difftime(Sys.time(), reduction_start, units = "secs"))
+  if (!(method %in% c("scimilarity")))  reduction_time <- as.numeric(difftime(Sys.time(), reduction_start, units = "secs"))
 }
 
 ########## PART 3: Classification ##########
@@ -393,8 +343,6 @@ classification_script_time <- as.numeric(difftime(Sys.time(), preprocess_start, 
 
 modeling_mem_gb <- get_peak_ram_gb()
 
-whole_script_peak_gb <- max(preprocess_mem_gb, reduction_mem_gb, modeling_mem_gb)
-
 train_sparsity <- as.list(calculate_sparsity(X_train))
 test_sparsity <- as.list(calculate_sparsity(X_test))
 
@@ -439,9 +387,7 @@ metadata <- list(
   ),
   
   RAM_usage = list(
-    whole_script_peak_gb = round(whole_script_peak_gb, 3),
     preprocess_stage_peak_gb = round(preprocess_mem_gb, 3),
-    reduction_R_peak_gb = round(reduction_mem_gb, 3),
     modeling_R_peak_gb = round(modeling_mem_gb, 3)
   ),
   
