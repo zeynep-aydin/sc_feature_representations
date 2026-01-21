@@ -11,15 +11,15 @@ We evaluate these methods across four diverse scRNA-seq datasets on cell type an
 ## Repository Contents
 
 ```
+scripts
 ├── classification.R              # Main classification pipeline
 ├── calculate_sigma.R             # Laplacian kernel bandwidth estimation
 ├── calculate_sigma_gaussian.R    # Gaussian kernel bandwidth estimation
 ├── get_scimilarity_embeddings.py # SCimilarity embedding generation
-└── utils.R                       # Preprocessing and utility functions
+├── utils.R                       # Preprocessing and utility functions
+├── scRNAseq_data_prep.R          # Data retrieval from scRNAseq R/Bioconductor and QC
+└── scea_data_prep.R              # SCEA multi-cohort integration and feature set construction 
 ```
-
-**Data Availability:** Preprocessed data matrices are available upon request.
-
 
 ## Running Experiments
 
