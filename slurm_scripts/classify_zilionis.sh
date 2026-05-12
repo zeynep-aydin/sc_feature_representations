@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --nodelist=ai[27-34]
 #SBATCH --partition=ai
-#SBATCH --time=30-00
-#SBATCH --mem=32000MB
+#SBATCH --time=15-00
+#SBATCH --mem=8000MB
 #SBATCH --output=slurm_logs/zil-%A_%a.out
 
 module load gnu14/14.3.0
@@ -24,7 +24,7 @@ RUN_ID=${SLURM_ARRAY_TASK_ID}
 METHOD=${1:-baseline}
 N_HVG=2000
 N_DIM_VALUES=(64 128 512 1024)
-TRAIN_PCTS=(50 70 80)
+TRAIN_PCTS=(50) # 70 80
 
 echo "Run ID: $RUN_ID  Method: $METHOD"
 echo "==============================================================================="

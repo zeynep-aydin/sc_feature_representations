@@ -19,8 +19,8 @@ parser$add_argument("-s", "--train_pct", default = 80L, type = "integer", choice
 parser$add_argument("-m", "--method", choices = c("rff_lapl", "rff_gauss", "pca", "scimilarity"))
 parser$add_argument("-t", "--task", choices = c("tissue", "celltype"))
 parser$add_argument("-a", "--algorithm", default = "glmnet", choices = c("glmnet", "svm"))
-parser$add_argument("-n", "--n_dim", type = "integer", help = "Output dimensions (RFF: 2*n_dim features; PCA: n_dim components)")
-parser$add_argument("--n_hvg", type = "integer", help = "Top HVGs to select before RFF (optional)")
+parser$add_argument("-n", "--n_dim", type = "integer", help = "Final output dimensions (RFF uses n_dim/2 internal projections)")
+parser$add_argument("--n_hvg", type = "integer", help = "Top HVGs to select (optional)")
 args <- parser$parse_args()
 
 method <- if (!is.null(args$method)) args$method else "baseline"
@@ -95,8 +95,6 @@ filename_base <- "baseline"
 reduction_time <- 0
 
 if (method != "baseline") {
-  reduction_start <- Sys.time()
-
   result <- if (method == "rff_lapl") {
     rff_reduce(X_train, X_test, args$n_dim, run_id, kernel = "laplacian")
   } else if (method == "rff_gauss") {
@@ -119,7 +117,7 @@ if (method != "baseline") {
   rff_metadata <- result$rff_metadata
   filename_base <- if (!is.null(args$n_hvg)) paste0("hvg", args$n_hvg, "_", result$filename_base) else result$filename_base
   reduction_seed <- result$reduction_seed
-  reduction_time <- as.numeric(difftime(Sys.time(), reduction_start, units = "secs"))
+  reduction_time <- result$reduction_time
   if (!is.null(result$preprocess_time)) preprocess_time <- result$preprocess_time
 
   log_info(sprintf("Reduction successful: %d x %d", nrow(X_train), ncol(X_train)))
@@ -132,6 +130,7 @@ set.seed(model_seed)
 gc(reset = TRUE)
 
 fit <- if (args$algorithm == "glmnet") train_glmnet(X_train, y_train) else train_svm(X_train, y_train)
+
 preds <- if (args$algorithm == "glmnet") {
   predict_glmnet(fit$model, fit$best_lambda, X_test, y_test)
 } else {
@@ -172,6 +171,7 @@ metadata <- list(
     hvg_time = hvg_time,
     reduction_time = reduction_time,
     model_training_time = fit$model_time,
+    predict_time = preds$predict_time,
     classification_script_time = classification_script_time
   ),
   modeling_R_peak_gb = round(modeling_R_peak_gb, 3),

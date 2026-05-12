@@ -107,8 +107,7 @@ scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
 
   X_train_r <- t(h5read(embeddings_file, "train_embeddings"))
   X_test_r <- t(h5read(embeddings_file, "test_embeddings"))
-  reduction_time <- h5readAttributes(embeddings_file, "/")$embedding_time
-  preprocess_time <- h5readAttributes(embeddings_file, "/")$preprocess_time
+  attrs <- h5readAttributes(embeddings_file, "/")
   unlink(c(indices_file, embeddings_file))
 
   list(
@@ -118,7 +117,7 @@ scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
     filename_base = "scimilarity",
     expected_dims = 128,
     reduction_seed = reduction_seed,
-    reduction_time = reduction_time,
-    preprocess_time = preprocess_time
+    reduction_time = attrs$embedding_time,
+    preprocess_time = attrs$preprocess_time
   )
 }

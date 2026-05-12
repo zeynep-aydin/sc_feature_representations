@@ -34,16 +34,18 @@ train_svm <- function(X_train, y_train) {
 }
 
 predict_glmnet <- function(model, best_lambda, X_test, y_test) {
+  t_start <- Sys.time()
   pred <- factor(
     predict(model, newx = X_test, s = best_lambda, type = "class"),
     levels = levels(y_test)
   )
   prob <- predict(model, newx = X_test, s = best_lambda, type = "response")[, , 1]
-  list(pred = pred, prob = prob)
+  list(pred = pred, prob = prob, predict_time = as.numeric(difftime(Sys.time(), t_start, units = "secs")))
 }
 
 predict_svm <- function(model, X_test, y_test) {
+  t_start <- Sys.time()
   pred <- predict(model, newdata = as.matrix(X_test))
   prob_raw <- predict(model, newdata = as.matrix(X_test), probability = TRUE)
-  list(pred = pred, prob = attr(prob_raw, "probabilities"))
+  list(pred = pred, prob = attr(prob_raw, "probabilities"), predict_time = as.numeric(difftime(Sys.time(), t_start, units = "secs")))
 }

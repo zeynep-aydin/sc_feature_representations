@@ -18,7 +18,6 @@ experiments/
 results/
 slurm_logs/
 extras/
-preprocessing/
 
 # Temporary data files
 *.h5
