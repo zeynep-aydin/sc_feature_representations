@@ -97,11 +97,9 @@ scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
   H5close()
 
   python_script_path <- file.path(project_root, "src", "get_scimilarity_embeddings.py")
-  conda_path <- "module load conda3/latest && source /opt/ohpc/pub/compiler/conda3/latest/etc/profile.d/conda.sh && conda activate scimilarity"
-
   python_cmd <- sprintf(
-    '%s && python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d"',
-    conda_path, python_script_path, data_dir, indices_file, embeddings_file, reduction_seed
+    'conda run -n scimilarity python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d"',
+    python_script_path, data_dir, indices_file, embeddings_file, reduction_seed
   )
   system(python_cmd, intern = TRUE)
 
