@@ -71,6 +71,16 @@ for train_pct in "${TRAIN_PCTS[@]}"; do
 
     elif [ "$METHOD" = "scimilarity" ]; then
         run_classification "$train_pct" "-m scimilarity" "method=scimilarity"
+
+    elif [ "$METHOD" = "scvi" ]; then
+        for n_dim in "${N_DIM_VALUES[@]}"; do
+            run_classification "$train_pct" \
+                "-m scvi -n $n_dim --max_epochs 10" \
+                "method=scvi, n_dim=$n_dim"
+            run_classification "$train_pct" \
+                "-m scvi -n $n_dim --max_epochs 100" \
+                "method=scvi, n_dim=$n_dim"
+        done
     fi
 done
 
@@ -80,4 +90,5 @@ echo "Done. Exit code: $?"
 # for method in baseline pca rff_lapl rff_gauss; do
 #     sbatch --array=1 --job-name=zil_$method classify_zilionis.sh $method
 # done
-# sbatch --array=1 --gres=gpu:1 --job-name=zil_scimilarity classify_zilionis.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --mem=20GB --job-name=zil_scimilarity classify_zilionis.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --job-name=zil_scvi classify_zilionis.sh scvi

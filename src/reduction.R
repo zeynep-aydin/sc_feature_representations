@@ -82,6 +82,44 @@ pca_reduce <- function(X_train, X_test, n_dim, run_id) {
   )
 }
 
+scvi_embed <- function(split_info, data_dir, project_root, run_id, n_dim, max_epochs = 400L) {
+  log_info("Generating scVI embeddings...")
+
+  reduction_seed <- 3141 + run_id
+  temp_dir <- tempdir()
+  unique_id <- paste0(run_id, "_", Sys.getpid(), "_", format(Sys.time(), "%Y%m%d_%H%M%S"))
+  indices_file    <- file.path(temp_dir, paste0("scvi_indices_", unique_id, ".h5"))
+  embeddings_file <- file.path(temp_dir, paste0("scvi_embeddings_", unique_id, ".h5"))
+
+  h5createFile(indices_file)
+  h5write(as.integer(split_info$train_indices - 1), indices_file, "train_indices")
+  h5write(as.integer(split_info$test_indices - 1), indices_file, "test_indices")
+  H5close()
+
+  python_script_path <- file.path(project_root, "src", "get_scvi_embeddings.py")
+  python_cmd <- sprintf(
+    '$HOME/.conda/envs/scvi/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --n_latent "%d" --max_epochs "%d" --seed "%d" 2>&1',
+    python_script_path, data_dir, indices_file, embeddings_file, n_dim, max_epochs, reduction_seed
+  )
+  system(python_cmd)
+
+  X_train_r <- t(h5read(embeddings_file, "train_embeddings"))
+  X_test_r <- t(h5read(embeddings_file, "test_embeddings"))
+  attrs <- h5readAttributes(embeddings_file, "/")
+  unlink(c(indices_file, embeddings_file))
+
+  list(
+    X_train = X_train_r,
+    X_test = X_test_r,
+    rff_metadata = NULL,
+    filename_base = paste0("scvi_dim", n_dim, "_ep", max_epochs),
+    expected_dims = n_dim,
+    reduction_seed = reduction_seed,
+    reduction_time = attrs$embedding_time,
+    preprocess_time = attrs$preprocess_time
+  )
+}
+
 scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
   log_info("Generating SCimilarity embeddings...")
 
@@ -98,10 +136,10 @@ scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
 
   python_script_path <- file.path(project_root, "src", "get_scimilarity_embeddings.py")
   python_cmd <- sprintf(
-    '$HOME/.conda/envs/scimilarity/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d"',
+    '$HOME/.conda/envs/scimilarity/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d" 2>&1',
     python_script_path, data_dir, indices_file, embeddings_file, reduction_seed
   )
-  system(python_cmd, intern = TRUE)
+  system(python_cmd)
 
   X_train_r <- t(h5read(embeddings_file, "train_embeddings"))
   X_test_r <- t(h5read(embeddings_file, "test_embeddings"))

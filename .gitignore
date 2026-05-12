@@ -16,7 +16,7 @@ __pycache__/
 data/
 experiments/
 results/
-slurm_logs/
+logs/
 slurm_scripts/slurm_logs/
 extras/
 

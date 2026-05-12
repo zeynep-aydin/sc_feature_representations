@@ -16,11 +16,12 @@ parser <- ArgumentParser(description = "Classification pipeline")
 parser$add_argument("-r", "--run_id", type = "integer", help = "Run/replicate ID (seeds + split selection)")
 parser$add_argument("-d", "--dataset", choices = c("zilionis_lung"))
 parser$add_argument("-s", "--train_pct", default = 80L, type = "integer", choices = c(50L, 70L, 80L))
-parser$add_argument("-m", "--method", choices = c("rff_lapl", "rff_gauss", "pca", "scimilarity"))
+parser$add_argument("-m", "--method", choices = c("rff_lapl", "rff_gauss", "pca", "scimilarity", "scvi"))
 parser$add_argument("-t", "--task", choices = c("tissue", "celltype"))
 parser$add_argument("-a", "--algorithm", default = "glmnet", choices = c("glmnet", "svm"))
 parser$add_argument("-n", "--n_dim", type = "integer", help = "Final output dimensions (RFF uses n_dim/2 internal projections)")
 parser$add_argument("--n_hvg", type = "integer", help = "Top HVGs to select (optional)")
+parser$add_argument("--max_epochs", type = "integer", default = 400L, help = "scVI max training epochs")
 args <- parser$parse_args()
 
 method <- if (!is.null(args$method)) args$method else "baseline"
@@ -63,7 +64,7 @@ rm(raw)
 hvg_time <- NULL
 hvg_indices <- NULL
 
-if (method != "scimilarity") {
+if (method != "scimilarity" && method != "scvi") {
   log_info("Log-normalizing datasets...")
   X_train <- log_normalize(X_train)
   X_test <- log_normalize(X_test)
@@ -101,6 +102,8 @@ if (method != "baseline") {
     rff_reduce(X_train, X_test, args$n_dim, run_id, kernel = "gaussian")
   } else if (method == "pca") {
     pca_reduce(X_train, X_test, args$n_dim, run_id)
+  } else if (method == "scvi") {
+    scvi_embed(split_info, data_dir, project_root, run_id, args$n_dim, args$max_epochs)
   } else {
     scimilarity_embed(split_info, data_dir, project_root, run_id)
   }
