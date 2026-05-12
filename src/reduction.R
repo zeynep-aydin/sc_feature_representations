@@ -82,15 +82,13 @@ pca_reduce <- function(X_train, X_test, n_dim, run_id) {
   )
 }
 
-scimilarity_embed <- function(split_info, data_dir, feature_mode, project_root, run_id) {
+scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
   log_info("Generating SCimilarity embeddings...")
 
   reduction_seed <- 4853 + run_id
-  set.seed(reduction_seed)
-
   temp_dir <- tempdir()
   unique_id <- paste0(run_id, "_", Sys.getpid(), "_", format(Sys.time(), "%Y%m%d_%H%M%S"))
-  indices_file <- file.path(temp_dir, paste0("scimilarity_indices_", unique_id, ".h5"))
+  indices_file    <- file.path(temp_dir, paste0("scimilarity_indices_", unique_id, ".h5"))
   embeddings_file <- file.path(temp_dir, paste0("scimilarity_embeddings_", unique_id, ".h5"))
 
   h5createFile(indices_file)
@@ -98,12 +96,12 @@ scimilarity_embed <- function(split_info, data_dir, feature_mode, project_root, 
   h5write(as.integer(split_info$test_indices - 1), indices_file, "test_indices")
   H5close()
 
-  python_script_path <- file.path(project_root, "get_scimilarity_embeddings.py")
+  python_script_path <- file.path(project_root, "src", "get_scimilarity_embeddings.py")
   conda_path <- "module load conda3/latest && source /opt/ohpc/pub/compiler/conda3/latest/etc/profile.d/conda.sh && conda activate scimilarity"
 
   python_cmd <- sprintf(
-    '%s && python "%s" --data_dir "%s" --feature_mode "%s" --indices_file "%s" --output_file "%s" --seed "%d"',
-    conda_path, python_script_path, data_dir, feature_mode, indices_file, embeddings_file, reduction_seed
+    '%s && python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d"',
+    conda_path, python_script_path, data_dir, indices_file, embeddings_file, reduction_seed
   )
   system(python_cmd, intern = TRUE)
 

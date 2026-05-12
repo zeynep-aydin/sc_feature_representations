@@ -13,9 +13,8 @@ suppressPackageStartupMessages({
 })
 
 parser <- ArgumentParser(description = "Classification pipeline")
-parser$add_argument("-r", "--run_id", type = "integer", help = "Run/replicate ID (seeds + fixed split lookup)")
-parser$add_argument("-d", "--dataset", choices = c("scea", "zhao_immune", "zilionis_lung", "he_organs"))
-parser$add_argument("-f", "--feature_mode", default = "intersection", choices = c("intersection", "thresh08"))
+parser$add_argument("-r", "--run_id", type = "integer", help = "Run/replicate ID (seeds + split selection)")
+parser$add_argument("-d", "--dataset", choices = c("zilionis_lung"))
 parser$add_argument("-s", "--train_pct", default = 80L, type = "integer", choices = c(50L, 70L, 80L))
 parser$add_argument("-m", "--method", choices = c("rff_lapl", "rff_gauss", "pca", "scimilarity"))
 parser$add_argument("-t", "--task", choices = c("tissue", "celltype"))
@@ -36,14 +35,13 @@ script_dir <- tryCatch(
 )
 
 source(file.path(script_dir, "utils.R"))
-source(file.path(script_dir, "fixed_splits.R"))
 source(file.path(script_dir, "bandwidth.R"))
 source(file.path(script_dir, "io.R"))
 source(file.path(script_dir, "reduction.R"))
 source(file.path(script_dir, "models.R"))
 source(file.path(script_dir, "metrics.R"))
 
-dataset_suffix <- if (args$dataset == "scea") paste0(args$dataset, "_", args$feature_mode) else args$dataset
+dataset_suffix <- args$dataset
 split_label <- paste0("train", args$train_pct, "_run", run_id)
 output_dir <- file.path(project_root, "experiments", dataset_suffix, method)
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -52,9 +50,8 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 log_info("Loading dataset...")
 preprocess_start <- Sys.time()
 
-raw <- load_dataset(args$dataset, data_dir, args$feature_mode, args$task)
-split_info <- make_split(raw$mtx, raw$labels, raw$batch_labels,
-                         args$dataset, train_frac, run_id)
+raw <- load_dataset(args$dataset, data_dir)
+split_info <- make_split(raw$mtx, raw$labels, raw$batch_labels, train_frac, run_id)
 
 X_train <- raw$mtx[split_info$train_indices, , drop = FALSE]
 X_test <- raw$mtx[split_info$test_indices, , drop = FALSE]
@@ -107,7 +104,7 @@ if (method != "baseline") {
   } else if (method == "pca") {
     pca_reduce(X_train, X_test, args$n_dim, run_id)
   } else {
-    scimilarity_embed(split_info, data_dir, args$feature_mode, project_root, run_id)
+    scimilarity_embed(split_info, data_dir, project_root, run_id)
   }
 
   if (is.null(result$X_train) || is.null(result$X_test) ||
@@ -155,7 +152,7 @@ metadata <- list(
   scaling_method = "min_max",
   n_train = nrow(X_train),
   n_test = nrow(X_test),
-  actual_train_fraction = nrow(X_train) / (nrow(X_train) + nrow(X_test)),
+  actual_train_fraction = split_info$actual_train_fraction,
   run_id = run_id,
   n_features = ncol(X_test),
   n_train_classes = length(levels(y_train)),

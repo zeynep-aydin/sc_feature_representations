@@ -3,8 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:1
-#SBATCH --nodelist=ai[18-26]
+#SBATCH --nodelist=ai[27-34]
 #SBATCH --partition=ai
 #SBATCH --time=30-00
 #SBATCH --mem=32000MB
@@ -77,8 +76,8 @@ done
 
 echo "Done. Exit code: $?"
 
-# Submission (array task ID = run_id = fixed split ID for zilionis):
+# Submission (single run):
 # for method in baseline pca rff_lapl rff_gauss; do
-#     sbatch --array=1,3,6 --job-name=zil_$method classify_zilionis.sh $method
+#     sbatch --array=1 --job-name=zil_$method classify_zilionis.sh $method
 # done
-# sbatch --array=1,3,6 --job-name=zil_scimilarity classify_zilionis.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --job-name=zil_scimilarity classify_zilionis.sh scimilarity
