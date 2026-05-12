@@ -98,7 +98,7 @@ scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
 
   python_script_path <- file.path(project_root, "src", "get_scimilarity_embeddings.py")
   python_cmd <- sprintf(
-    'conda run -n scimilarity python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d"',
+    '$HOME/.conda/envs/scimilarity/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d"',
     python_script_path, data_dir, indices_file, embeddings_file, reduction_seed
   )
   system(python_cmd, intern = TRUE)
