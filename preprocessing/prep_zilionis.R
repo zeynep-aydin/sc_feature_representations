@@ -37,6 +37,9 @@ cat(sprintf("After Used filter: %d cells\n", nrow(mtx)))
 d <- drop_by_label(mtx, ct, don, extra_pattern = "Patient.*specific|^ND$")
 mtx <- d$mtx; ct <- d$ct; don <- d$don
 
+d <- drop_by_min_cells(mtx, ct, don, min_cells = 50)
+mtx <- d$mtx; ct <- d$ct; don <- d$don
+
 cat("\nFinal cell type counts:\n")
 print(sort(table(ct), decreasing = TRUE))
 cat("\nDonor counts:\n")

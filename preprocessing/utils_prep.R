@@ -15,6 +15,20 @@ drop_by_label <- function(mtx, ct, don, extra_pattern = NULL) {
   list(mtx = mtx[keep, , drop = FALSE], ct = ct[keep], don = don[keep])
 }
 
+drop_by_min_cells <- function(mtx, ct, don, min_cells = 50) {
+  counts <- table(ct)
+  drop_types <- names(counts[counts < min_cells])
+  if (length(drop_types) > 0) {
+    drop_cells <- sum(counts[drop_types])
+    cat(sprintf("Dropping %d type(s) with <%d cells (%d cells total): %s\n",
+                length(drop_types), min_cells, drop_cells, paste(drop_types, collapse = ", ")))
+  } else {
+    cat(sprintf("No types dropped at min_cells=%d\n", min_cells))
+  }
+  keep <- !ct %in% drop_types
+  list(mtx = mtx[keep, , drop = FALSE], ct = ct[keep], don = don[keep])
+}
+
 save_dataset <- function(mtx, ct, don, out_dir) {
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   qs_save(mtx, file.path(out_dir, "counts.qs"))
