@@ -32,7 +32,7 @@ drop_by_min_cells <- function(mtx, ct, don, min_cells = 50) {
 save_dataset <- function(mtx, ct, don, out_dir) {
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   qs_save(mtx, file.path(out_dir, "counts.qs"))
-  qs_save(as.factor(ct), file.path(out_dir, "labels.qs"))
+  qs_save(droplevels(as.factor(ct)), file.path(out_dir, "labels.qs"))
   qs_save(as.character(don), file.path(out_dir, "donors.qs"))
   cat(sprintf("Saved %d cells x %d genes | %d types | %d donors -> %s\n",
               nrow(mtx), ncol(mtx),
