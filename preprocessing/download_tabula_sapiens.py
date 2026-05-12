@@ -11,7 +11,7 @@ COLLECTION_ID = "e5f58829-1a66-40b5-a624-9046778e74f5"
 TENX_ASSAYS = ["10x 3' v3", "10x 5' v2"]
 
 PROJ_ROOT = Path(__file__).resolve().parents[1]
-OUT_PATH = PROJ_ROOT / "data" / "tabula_sapiens" / "counts.h5ad"
+OUT_PATH = PROJ_ROOT / "raw_data" / "tabula_sapiens" / "counts.h5ad"
 
 ALL_CELLS_DATASET_ID = "53d208b0-2cfd-4366-9866-c3c6114081bc"
 

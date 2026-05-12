@@ -12,11 +12,8 @@
 cd /scratch/zeynepaydin21/sc_feature_representations/
 export PROJ_ROOT=/scratch/zeynepaydin21/sc_feature_representations
 
-source $HOME/.conda/etc/profile.d/conda.sh
-conda activate scdata
-
 echo "Downloading Tabula Sapiens (10x only) via CellxGene Census..."
-python preprocessing/download_tabula_sapiens.py
+conda run -n scdata python preprocessing/download_tabula_sapiens.py
 
 echo "Done. Exit code: $?"
 
