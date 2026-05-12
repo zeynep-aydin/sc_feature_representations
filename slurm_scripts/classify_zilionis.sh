@@ -14,8 +14,8 @@ module load gnu14/14.3.0
 module load openblas/0.3.30
 module load lapack/3.11.0
 
-cd /scratch/zeynepaydin21/proj1/dev/
-export PROJ_ROOT=/scratch/zeynepaydin21/proj1/dev
+cd /scratch/zeynepaydin21/sc_feature_representations/
+export PROJ_ROOT=/scratch/zeynepaydin21/sc_feature_representations
 
 ulimit -s unlimited
 ulimit -l unlimited
