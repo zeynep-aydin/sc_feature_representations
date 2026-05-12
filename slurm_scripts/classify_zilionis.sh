@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
-#SBATCH --nodelist=ai[27-34]
+#SBATCH --nodelist=ai[18-26]
 #SBATCH --partition=ai
 #SBATCH --time=15-00
 #SBATCH --mem=8000MB
