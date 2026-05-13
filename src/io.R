@@ -1,6 +1,7 @@
-load_dataset <- function(dataset, data_dir) {
+load_dataset <- function(dataset, data_dir, task = "celltype") {
   mtx <- qs2::qs_read(file.path(data_dir, "counts.qs"))
-  labels <- qs2::qs_read(file.path(data_dir, "labels.qs"))
+  label_file <- if (task == "tissue") "tissue.qs" else "labels.qs"
+  labels <- qs2::qs_read(file.path(data_dir, label_file))
   donors <- qs2::qs_read(file.path(data_dir, "donors.qs"))
   list(mtx = mtx, labels = labels, batch_labels = donors)
 }

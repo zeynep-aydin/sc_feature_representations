@@ -25,63 +25,67 @@ METHOD=${1:-baseline}
 N_HVG=2000
 N_DIM_VALUES=(64 128 512 1024)
 TRAIN_PCTS=(50) # 70 80
+TASKS=(celltype tissue)
 
 echo "Run ID: $RUN_ID  Method: $METHOD"
 echo "==============================================================================="
 
 run_classification() {
-    local train_pct=$1
-    local extra=$2
-    local desc=$3
+    local task=$1
+    local train_pct=$2
+    local extra=$3
+    local desc=$4
 
-    echo "Running: zilionis_lung, train=${train_pct}%, $desc"
+    echo "Running: zilionis_lung, task=$task, train=${train_pct}%, $desc"
     Rscript "$SCRIPT" \
         -r "$RUN_ID" \
         -d zilionis_lung \
-        -t celltype \
+        -t "$task" \
         -a glmnet \
         -s "$train_pct" \
         $extra
 }
 
+for task in "${TASKS[@]}"; do
 for train_pct in "${TRAIN_PCTS[@]}"; do
     if [ "$METHOD" = "baseline" ]; then
-        run_classification "$train_pct" "" "baseline"
-        run_classification "$train_pct" "--n_hvg $N_HVG" "baseline, n_hvg=$N_HVG"
+        run_classification "$task" "$train_pct" "" "baseline"
+        run_classification "$task" "$train_pct" "--n_hvg $N_HVG" "baseline, n_hvg=$N_HVG"
 
     elif [ "$METHOD" = "rff_lapl" ] || [ "$METHOD" = "rff_gauss" ]; then
         for n_dim in "${N_DIM_VALUES[@]}"; do
-            run_classification "$train_pct" \
+            run_classification "$task" "$train_pct" \
                 "-m $METHOD -n $n_dim" \
                 "method=$METHOD, n_dim=$n_dim"
-            run_classification "$train_pct" \
+            run_classification "$task" "$train_pct" \
                 "-m $METHOD -n $n_dim --n_hvg $N_HVG" \
                 "method=$METHOD, n_dim=$n_dim, n_hvg=$N_HVG"
         done
 
     elif [ "$METHOD" = "pca" ]; then
         for n_dim in "${N_DIM_VALUES[@]}"; do
-            run_classification "$train_pct" \
+            run_classification "$task" "$train_pct" \
                 "-m pca -n $n_dim" \
                 "method=pca, n_dim=$n_dim"
-            run_classification "$train_pct" \
+            run_classification "$task" "$train_pct" \
                 "-m pca -n $n_dim --n_hvg $N_HVG" \
                 "method=pca, n_dim=$n_dim, n_hvg=$N_HVG"
         done
 
     elif [ "$METHOD" = "scimilarity" ]; then
-        run_classification "$train_pct" "-m scimilarity" "method=scimilarity"
+        run_classification "$task" "$train_pct" "-m scimilarity" "method=scimilarity"
 
     elif [ "$METHOD" = "scvi" ]; then
         for n_dim in "${N_DIM_VALUES[@]}"; do
-            run_classification "$train_pct" \
+            run_classification "$task" "$train_pct" \
                 "-m scvi -n $n_dim --max_epochs 10" \
                 "method=scvi, n_dim=$n_dim"
-            run_classification "$train_pct" \
+            run_classification "$task" "$train_pct" \
                 "-m scvi -n $n_dim --max_epochs 100" \
                 "method=scvi, n_dim=$n_dim"
         done
     fi
+done
 done
 
 echo "Done. Exit code: $?"

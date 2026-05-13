@@ -69,6 +69,6 @@ write.csv(results, output_path, row.names = FALSE)
 cat(sprintf("Written %d rows to %s\n", nrow(results), output_path))
 
 # Summary table
-cols <- c("dataset", "method", "n_dim", "n_hvg", "max_epochs", "run_id", "accuracy", "f1_macro", "auroc")
+cols <- c("dataset", "task", "method", "n_dim", "n_hvg", "max_epochs", "run_id", "accuracy", "f1_macro", "auroc")
 print(results[order(results$dataset, results$method, results$n_dim), intersect(cols, colnames(results))],
       digits = 4, row.names = FALSE)

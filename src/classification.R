@@ -51,7 +51,7 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 log_info("Loading dataset...")
 preprocess_start <- Sys.time()
 
-raw <- load_dataset(args$dataset, data_dir)
+raw <- load_dataset(args$dataset, data_dir, args$task)
 split_info <- make_split(raw$mtx, raw$labels, raw$batch_labels, train_frac, run_id)
 
 X_train <- raw$mtx[split_info$train_indices, , drop = FALSE]
@@ -60,6 +60,13 @@ all_labels <- as.factor(raw$labels)
 y_train <- all_labels[split_info$train_indices]
 y_test <- all_labels[split_info$test_indices]
 rm(raw)
+
+missing_train <- setdiff(levels(y_train), unique(y_train))
+missing_test <- setdiff(levels(y_test), unique(y_test))
+if (length(missing_train) > 0)
+  stop(sprintf("Train set missing classes: %s", paste(missing_train, collapse = ", ")))
+if (length(missing_test) > 0)
+  stop(sprintf("Test set missing classes: %s", paste(missing_test, collapse = ", ")))
 
 hvg_time <- NULL
 hvg_indices <- NULL
