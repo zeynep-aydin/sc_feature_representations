@@ -1,55 +1,62 @@
 #!/usr/bin/env python3
-"""Download Tabula Sapiens from CellxGene Census, filtered to 10x assays only."""
+"""Download Tabula Sapiens deposited h5ad from CellxGene Data Portal.
 
+Direct file download — all obs/var columns included as deposited by authors.
+Supports resume if a partial file already exists.
+
+Output: raw_data/tabula_sapiens/counts.h5ad (~45 GB)
+"""
+
+import os
 import sys
 from pathlib import Path
 
-import cellxgene_census
-import anndata
+URL = "https://datasets.cellxgene.cziscience.com/5a495302-b7cd-4bf9-853e-95627b00bb03.h5ad"
+EXPECTED_BYTES = 45013946701
 
-COLLECTION_ID = "e5f58829-1a66-40b5-a624-9046778e74f5"
-TENX_ASSAYS = ["10x 3' v3", "10x 5' v2"]
-
-PROJ_ROOT = Path(__file__).resolve().parents[1]
+PROJ_ROOT = Path(os.getenv("PROJ_ROOT", Path(__file__).resolve().parents[1]))
 OUT_PATH = PROJ_ROOT / "raw_data" / "tabula_sapiens" / "counts.h5ad"
 
-ALL_CELLS_DATASET_ID = "53d208b0-2cfd-4366-9866-c3c6114081bc"
 
-OBS_COLS = [
-    "cell_type",
-    "tissue",
-    "donor_id",
-    "assay",
-]
+def download():
+    import urllib.request
 
-def main():
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    assay_str = ", ".join(f'"{a}"' for a in TENX_ASSAYS)
-    obs_filter = (
-        f'dataset_id == "{ALL_CELLS_DATASET_ID}"'
-        f" and assay in [{assay_str}]"
-    )
+    existing = OUT_PATH.stat().st_size if OUT_PATH.exists() else 0
+    if existing == EXPECTED_BYTES:
+        print(f"Already complete: {OUT_PATH} ({existing:,} bytes)")
+        return
+    if existing > 0:
+        print(f"Resuming from byte {existing:,} / {EXPECTED_BYTES:,}")
 
-    with cellxgene_census.open_soma(census_version="2025-11-08") as census:
-        print(f"Filter: {obs_filter}")
-        print("Streaming anndata from Census...")
+    req = urllib.request.Request(URL)
+    if existing > 0:
+        req.add_header("Range", f"bytes={existing}-")
 
-        adata = cellxgene_census.get_anndata(
-            census,
-            organism="Homo sapiens",
-            obs_value_filter=obs_filter,
-            obs_column_names=OBS_COLS,
-            X_name="raw",
-        )
+    mode = "ab" if existing > 0 else "wb"
+    downloaded = existing
 
-    print(f"\nDownloaded {adata.n_obs:,} cells x {adata.n_vars:,} genes")
-    print(f"Assay breakdown:\n{adata.obs['assay'].value_counts().to_string()}")
-    print(f"Donors: {adata.obs['donor_id'].nunique()}")
+    with urllib.request.urlopen(req) as resp, open(OUT_PATH, mode) as fh:
+        total = int(resp.headers.get("Content-Length", EXPECTED_BYTES - existing))
+        chunk = 1024 * 1024  # 1 MB
+        while True:
+            buf = resp.read(chunk)
+            if not buf:
+                break
+            fh.write(buf)
+            downloaded += len(buf)
+            pct = 100 * downloaded / EXPECTED_BYTES
+            print(f"\r  {downloaded/1e9:.2f} / {EXPECTED_BYTES/1e9:.2f} GB  ({pct:.1f}%)",
+                  end="", flush=True)
 
-    print(f"\nWriting to {OUT_PATH} ...")
-    adata.write_h5ad(OUT_PATH)
-    print("Done.")
+    print()
+    final = OUT_PATH.stat().st_size
+    if final != EXPECTED_BYTES:
+        print(f"WARNING: expected {EXPECTED_BYTES:,} bytes, got {final:,}", file=sys.stderr)
+    else:
+        print(f"Download complete: {OUT_PATH}")
+
 
 if __name__ == "__main__":
-    main()
+    download()
