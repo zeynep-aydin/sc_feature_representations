@@ -21,6 +21,7 @@ extract_row <- function(f) {
   data.frame(
     file                  = basename(f),
     dataset               = .get(m$args$dataset),
+    label_level           = .get(m$args$label_level),
     feature_mode          = .get(m$args$feature_mode, "intersection"),
     task                  = .get(m$args$task),
     method                = .get(m$method),

@@ -14,7 +14,7 @@ suppressPackageStartupMessages({
 
 parser <- ArgumentParser(description = "Classification pipeline")
 parser$add_argument("-r", "--run_id", type = "integer", help = "Run/replicate ID (seeds + split selection)")
-parser$add_argument("-d", "--dataset", choices = c("zilionis_lung"))
+parser$add_argument("-d", "--dataset", choices = c("zilionis_lung", "pbmc"))
 parser$add_argument("-s", "--train_pct", default = 80L, type = "integer", choices = c(50L, 70L, 80L))
 parser$add_argument("-m", "--method", choices = c("rff_lapl", "rff_gauss", "pca", "scimilarity", "scvi"))
 parser$add_argument("-t", "--task", choices = c("tissue", "celltype"))
@@ -22,6 +22,7 @@ parser$add_argument("-a", "--algorithm", default = "glmnet", choices = c("glmnet
 parser$add_argument("-n", "--n_dim", type = "integer", help = "Final output dimensions (RFF uses n_dim/2 internal projections)")
 parser$add_argument("--n_hvg", type = "integer", help = "Top HVGs to select (optional)")
 parser$add_argument("--max_epochs", type = "integer", default = 400L, help = "scVI max training epochs")
+parser$add_argument("--label_level", choices = c("l1", "l2", "l3"), help = "Label granularity for multi-level datasets (e.g. pbmc)")
 args <- parser$parse_args()
 
 method <- if (!is.null(args$method)) args$method else "baseline"
@@ -42,7 +43,11 @@ source(file.path(script_dir, "reduction.R"))
 source(file.path(script_dir, "models.R"))
 source(file.path(script_dir, "metrics.R"))
 
-dataset_suffix <- args$dataset
+dataset_suffix <- if (!is.null(args$label_level)) {
+  paste0(args$dataset, "_", args$label_level)
+} else {
+  args$dataset
+}
 split_label <- paste0("train", args$train_pct, "_run", run_id)
 output_dir <- file.path(project_root, "experiments", dataset_suffix, method)
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -51,7 +56,7 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 log_info("Loading dataset...")
 preprocess_start <- Sys.time()
 
-raw <- load_dataset(args$dataset, data_dir, args$task)
+raw <- load_dataset(args$dataset, data_dir, args$task, args$label_level)
 split_info <- make_split(raw$mtx, raw$labels, raw$batch_labels, train_frac, run_id)
 
 X_train <- raw$mtx[split_info$train_indices, , drop = FALSE]
