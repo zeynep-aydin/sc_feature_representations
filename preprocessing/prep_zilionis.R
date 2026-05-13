@@ -24,6 +24,7 @@ sce <- ZilionisLungData(which = "human")
 mtx <- t(assay(sce, "counts"))  # cells x genes
 ct  <- sce$`Major cell type`
 don <- sce$Patient
+tissue <- sce$Tissue
 used <- sce$Used
 
 cat(sprintf("Raw: %d cells, %d genes\n", nrow(mtx), ncol(mtx)))
@@ -31,19 +32,24 @@ cat(sprintf("Raw: %d cells, %d genes\n", nrow(mtx), ncol(mtx)))
 mtx <- mtx[used, , drop = FALSE]
 ct  <- ct[used]
 don <- don[used]
+tissue <- tissue[used]
 cat(sprintf("After Used filter: %d cells\n", nrow(mtx)))
 
 # Drop doublets + Patient*-specific (donor-exclusive types) + ND (undefined)
-d <- drop_by_label(mtx, ct, don, extra_pattern = "Patient.*specific|^ND$")
-mtx <- d$mtx; ct <- d$ct; don <- d$don
+d <- drop_by_label(mtx, ct, don, extra_pattern = "Patient.*specific|^ND$",
+                   extra = list(tissue = tissue))
+mtx <- d$mtx; ct <- d$ct; don <- d$don; tissue <- d$tissue
 
-d <- drop_by_min_cells(mtx, ct, don, min_cells = 50)
-mtx <- d$mtx; ct <- d$ct; don <- d$don
+d <- drop_by_min_cells(mtx, ct, don, min_cells = 50, extra = list(tissue = tissue))
+mtx <- d$mtx; ct <- d$ct; don <- d$don; tissue <- d$tissue
 
 cat("\nFinal cell type counts:\n")
 print(sort(table(ct), decreasing = TRUE))
 cat("\nDonor counts:\n")
 print(sort(table(don), decreasing = TRUE))
+cat("\nTissue counts:\n")
+print(table(tissue))
 
 save_dataset(mtx, ct, don, out_dir)
+qs2::qs_save(as.factor(tissue), file.path(out_dir, "tissue.qs"))
 export_h5ad(mtx, out_dir, script_dir)

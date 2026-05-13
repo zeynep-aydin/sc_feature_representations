@@ -8,14 +8,16 @@ DOUBLET_PATTERN <- paste(
   sep = "|"
 )
 
-drop_by_label <- function(mtx, ct, don, extra_pattern = NULL) {
+drop_by_label <- function(mtx, ct, don, extra_pattern = NULL, extra = list()) {
   pattern <- if (!is.null(extra_pattern)) paste(DOUBLET_PATTERN, extra_pattern, sep = "|") else DOUBLET_PATTERN
   keep <- !is.na(ct) & !grepl(pattern, ct, ignore.case = TRUE)
   cat(sprintf("Dropping %d / %d cells by label pattern\n", sum(!keep), length(keep)))
-  list(mtx = mtx[keep, , drop = FALSE], ct = ct[keep], don = don[keep])
+  result <- list(mtx = mtx[keep, , drop = FALSE], ct = ct[keep], don = don[keep])
+  for (nm in names(extra)) result[[nm]] <- extra[[nm]][keep]
+  result
 }
 
-drop_by_min_cells <- function(mtx, ct, don, min_cells = 50) {
+drop_by_min_cells <- function(mtx, ct, don, min_cells = 50, extra = list()) {
   counts <- table(ct)
   drop_types <- names(counts[counts < min_cells])
   if (length(drop_types) > 0) {
@@ -26,7 +28,9 @@ drop_by_min_cells <- function(mtx, ct, don, min_cells = 50) {
     cat(sprintf("No types dropped at min_cells=%d\n", min_cells))
   }
   keep <- !ct %in% drop_types
-  list(mtx = mtx[keep, , drop = FALSE], ct = ct[keep], don = don[keep])
+  result <- list(mtx = mtx[keep, , drop = FALSE], ct = ct[keep], don = don[keep])
+  for (nm in names(extra)) result[[nm]] <- extra[[nm]][keep]
+  result
 }
 
 save_dataset <- function(mtx, ct, don, out_dir) {
