@@ -118,13 +118,15 @@ if (method != "baseline") {
   X_train <- result$X_train
   X_test <- result$X_test
   rff_metadata <- result$rff_metadata
-  filename_base <- if (!is.null(args$n_hvg)) paste0("hvg", args$n_hvg, "_", result$filename_base) else result$filename_base
+  filename_base <- result$filename_base
   reduction_seed <- result$reduction_seed
   reduction_time <- result$reduction_time
   if (!is.null(result$preprocess_time)) preprocess_time <- result$preprocess_time
 
   log_info(sprintf("Reduction successful: %d x %d", nrow(X_train), ncol(X_train)))
 }
+
+if (!is.null(args$n_hvg)) filename_base <- paste0("hvg", args$n_hvg, "_", filename_base)
 
 ########## PART 3: Train and evaluate ##########
 log_info(sprintf("Training %s model...", args$algorithm))
