@@ -13,7 +13,7 @@ cd /scratch/zeynepaydin21/sc_feature_representations/
 export PROJ_ROOT=/scratch/zeynepaydin21/sc_feature_representations
 
 echo "Downloading Tabula Sapiens deposited h5ad from CellxGene Data Portal..."
-python preprocessing/download_tabula_sapiens.py
+conda run -n scdata python preprocessing/download_tabula_sapiens.py
 
 echo "Done. Exit code: $?"
 
