@@ -7,7 +7,7 @@
 #SBATCH --partition=ai
 #SBATCH --time=15-00
 #SBATCH --mem=16000MB
-#SBATCH --output=slurm_logs/pbmc-%A_%a.out
+#SBATCH --output=slurm_logs/%x-%A_%a.out
 
 module load gnu14/14.3.0
 module load openblas/0.3.30
@@ -93,7 +93,7 @@ echo "Done. Exit code: $?"
 
 # Submission (8 donors -> exhaustive split, array=1):
 # for method in baseline pca rff_lapl rff_gauss; do
-#     sbatch --array=1 --job-name=pbmc_$method slurm_scripts/classify_pbmc.sh $method
+#     sbatch --array=1 --job-name=pbmc_$method classify_pbmc.sh $method
 # done
-# sbatch --array=1 --gres=gpu:1 --mem=20GB --job-name=pbmc_scimilarity slurm_scripts/classify_pbmc.sh scimilarity
-# sbatch --array=1 --gres=gpu:1 --job-name=pbmc_scvi slurm_scripts/classify_pbmc.sh scvi
+# sbatch --array=1 --gres=gpu:1 --mem=20GB --job-name=pbmc_scimilarity classify_pbmc.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --job-name=pbmc_scvi classify_pbmc.sh scvi

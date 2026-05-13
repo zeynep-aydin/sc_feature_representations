@@ -7,7 +7,7 @@
 #SBATCH --partition=ai
 #SBATCH --time=15-00
 #SBATCH --mem=8000MB
-#SBATCH --output=slurm_logs/zil-%A_%a.out
+#SBATCH --output=slurm_logs/%x-%A_%a.out
 
 module load gnu14/14.3.0
 module load openblas/0.3.30
