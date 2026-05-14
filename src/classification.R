@@ -21,7 +21,7 @@ parser$add_argument("-t", "--task", choices = c("tissue", "celltype"))
 parser$add_argument("-a", "--algorithm", default = "glmnet", choices = c("glmnet", "svm"))
 parser$add_argument("-n", "--n_dim", type = "integer", help = "Final output dimensions (RFF uses n_dim/2 internal projections)")
 parser$add_argument("--n_hvg", type = "integer", help = "Top HVGs to select (optional)")
-parser$add_argument("--max_epochs", type = "integer", default = 400L, help = "scVI max training epochs")
+parser$add_argument("--max_epochs", type = "integer", help = "scVI max training epochs (default: 400)")
 parser$add_argument("--label_level", choices = c("l1", "l2", "l3"), help = "Label granularity for multi-level datasets (e.g. pbmc)")
 args <- parser$parse_args()
 

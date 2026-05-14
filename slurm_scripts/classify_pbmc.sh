@@ -6,7 +6,7 @@
 #SBATCH --nodelist=ai[18-26]
 #SBATCH --partition=ai
 #SBATCH --time=15-00
-#SBATCH --mem=16000MB
+#SBATCH --mem=32000MB
 #SBATCH --output=slurm_logs/%x-%A_%a.out
 
 module load gnu14/14.3.0
@@ -24,8 +24,8 @@ RUN_ID=${SLURM_ARRAY_TASK_ID}
 METHOD=${1:-baseline}
 N_HVG=2000
 N_DIM_VALUES=(64 128 512 1024)
-TRAIN_PCTS=(50) # 70 80
 LABEL_LEVELS=(l1 l2 l3)
+# l2: all splits; l1/l3: 80% only
 
 echo "Run ID: $RUN_ID  Method: $METHOD"
 echo "==============================================================================="
@@ -48,7 +48,8 @@ run_classification() {
 }
 
 for label_level in "${LABEL_LEVELS[@]}"; do
-for train_pct in "${TRAIN_PCTS[@]}"; do
+if [ "$label_level" = "l2" ]; then ACTIVE_PCTS=(50); else ACTIVE_PCTS=(50); fi # then ACTIVE_PCTS=(50 70 80); else ACTIVE_PCTS=(80); fi
+for train_pct in "${ACTIVE_PCTS[@]}"; do
     if [ "$METHOD" = "baseline" ]; then
         run_classification "$label_level" "$train_pct" "" "baseline"
         run_classification "$label_level" "$train_pct" "--n_hvg $N_HVG" "baseline, n_hvg=$N_HVG"
@@ -95,5 +96,5 @@ echo "Done. Exit code: $?"
 # for method in baseline pca rff_lapl rff_gauss; do
 #     sbatch --array=1 --job-name=pbmc_$method classify_pbmc.sh $method
 # done
-# sbatch --array=1 --gres=gpu:1 --mem=20GB --job-name=pbmc_scimilarity classify_pbmc.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --mem=40GB --job-name=pbmc_scimilarity classify_pbmc.sh scimilarity
 # sbatch --array=1 --gres=gpu:1 --job-name=pbmc_scvi classify_pbmc.sh scvi

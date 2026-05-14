@@ -82,7 +82,8 @@ pca_reduce <- function(X_train, X_test, n_dim, run_id) {
   )
 }
 
-scvi_embed <- function(split_info, data_dir, project_root, run_id, n_dim, max_epochs = 400L) {
+scvi_embed <- function(split_info, data_dir, project_root, run_id, n_dim, max_epochs = NULL) {
+  if (is.null(max_epochs)) max_epochs <- 400L
   log_info("Generating scVI embeddings...")
 
   reduction_seed <- 3141 + run_id
