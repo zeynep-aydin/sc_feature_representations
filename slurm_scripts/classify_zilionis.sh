@@ -25,7 +25,7 @@ METHOD=${1:-baseline}
 TASK_ARG=${2:-both}
 N_HVG=2000
 N_DIM_VALUES=(64 128 512 1024)
-TRAIN_PCTS=(50) # 70 80
+TRAIN_PCTS=(70 80) # 50 70 80
 if [ "$TASK_ARG" = "both" ]; then TASKS=(celltype tissue); else TASKS=("$TASK_ARG"); fi
 
 echo "Run ID: $RUN_ID  Method: $METHOD"

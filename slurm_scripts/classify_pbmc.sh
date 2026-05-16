@@ -48,7 +48,7 @@ run_classification() {
 }
 
 for label_level in "${LABEL_LEVELS[@]}"; do
-if [ "$label_level" = "l2" ]; then ACTIVE_PCTS=(50); else ACTIVE_PCTS=(50); fi # then ACTIVE_PCTS=(50 70 80); else ACTIVE_PCTS=(80); fi
+if [ "$label_level" = "l2" ]; then ACTIVE_PCTS=(70 80); else ACTIVE_PCTS=(80); fi # then ACTIVE_PCTS=(50 70 80); else ACTIVE_PCTS=(80); fi
 for train_pct in "${ACTIVE_PCTS[@]}"; do
     if [ "$METHOD" = "baseline" ]; then
         run_classification "$label_level" "$train_pct" "" "baseline"
