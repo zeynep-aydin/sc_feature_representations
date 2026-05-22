@@ -23,7 +23,7 @@ SCRIPT=${PROJ_ROOT}/src/classification.R
 RUN_ID=${SLURM_ARRAY_TASK_ID}
 METHOD=${1:-baseline}
 N_HVG=2000
-N_DIM_VALUES=(64 128 512 1024)
+N_DIM_VALUES=(64 128 512 1024 2048)
 LABEL_LEVELS=(l1 l2 l3)
 # l2: all splits; l1/l3: 80% only
 

@@ -17,10 +17,15 @@ rff_reduce <- function(X_train, X_test, n_dim, run_id, kernel = "laplacian") {
     }
   }
 
+  n_threads <- as.integer(Sys.getenv("OMP_NUM_THREADS", unset = "1"))
+  if (n_threads > 1 && requireNamespace("RhpcBLASctl", quietly = TRUE)) {
+    RhpcBLASctl::omp_set_num_threads(n_threads)
+  }
+
   if (n_dim %% 2 != 0) stop("--n_dim must be even for RFF (output = 2 * n_projections)")
   n_proj <- n_dim / 2L
 
-  sigma_N <- if (nrow(X_train) >= 250000) 2500 else if (nrow(X_train) >= 100000) 2000 else 1000
+  sigma_N <- 500
   reduction_seed <- 8876 + run_id
   set.seed(reduction_seed)
 
