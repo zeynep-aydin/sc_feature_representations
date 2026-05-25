@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=zil_classify
+#SBATCH --job-name=tabula_classify
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --nodelist=ai[18-26]
 #SBATCH --partition=ai
 #SBATCH --time=15-00
-#SBATCH --mem=8000MB
+#SBATCH --mem=64G
 #SBATCH --output=slurm_logs/%x-%A_%a.out
 
 module load gnu14/14.3.0
@@ -35,10 +35,11 @@ if [[ "$METHOD" == rff_* ]]; then
 else
     RUNNER="Rscript"
 fi
+
 TASK_ARG=${2:-both}
 N_HVG=2000
 N_DIM_VALUES=(64 128 512 1024 2048)
-TRAIN_PCTS=(70 80) # 50 70 80
+TRAIN_PCTS=(70 80)
 if [ "$TASK_ARG" = "both" ]; then TASKS=(celltype tissue); else TASKS=("$TASK_ARG"); fi
 
 echo "Run ID: $RUN_ID  Method: $METHOD"
@@ -50,10 +51,10 @@ run_classification() {
     local extra=$3
     local desc=$4
 
-    echo "Running: zilionis_lung, task=$task, train=${train_pct}%, $desc"
+    echo "Running: tabula_sapiens, task=$task, train=${train_pct}%, $desc"
     $RUNNER "$SCRIPT" \
         -r "$RUN_ID" \
-        -d zilionis_lung \
+        -d tabula_sapiens \
         -t "$task" \
         -a glmnet \
         -s "$train_pct" \
@@ -86,11 +87,13 @@ for train_pct in "${TRAIN_PCTS[@]}"; do
                 "method=pca, n_dim=$n_dim, n_hvg=$N_HVG"
         done
 
-    elif [ "$METHOD" = "scimilarity" ]; then
-        run_classification "$task" "$train_pct" "-m scimilarity" "method=scimilarity"
+    # scimilarity: needs ENSEMBL->symbol conversion + 53 duplicate symbol strategy TBD
+    # elif [ "$METHOD" = "scimilarity" ]; then
+    #     run_classification "$task" "$train_pct" "-m scimilarity" "method=scimilarity"
 
-    elif [ "$METHOD" = "scvi" ]; then
-        run_classification "$task" "$train_pct" "-m scvi" "method=scvi"
+    # scvi: get_scvi_embeddings.py assumes symbol input; tabula_sapiens has ENSEMBL IDs — needs update
+    # elif [ "$METHOD" = "scvi" ]; then
+    #     run_classification "$task" "$train_pct" "-m scvi" "method=scvi"
 
     fi
 done
@@ -98,12 +101,10 @@ done
 
 echo "Done. Exit code: $?"
 
-# Submission (single run):
+# Submission (17 donors -> exhaustive split, array=1):
 # for method in baseline pca; do
-#     sbatch --array=1 --job-name=zil_$method classify_zilionis.sh $method
+#     sbatch --array=1 --job-name=tabula_$method slurm_scripts/classify_tabula_sapiens.sh $method
 # done
 # for method in rff_lapl rff_gauss; do
-#     sbatch --array=1 --gres=gpu:1 --job-name=zil_$method classify_zilionis.sh $method
+#     sbatch --array=1 --gres=gpu:1 --job-name=tabula_$method slurm_scripts/classify_tabula_sapiens.sh $method
 # done
-# sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zil_scimilarity classify_zilionis.sh scimilarity
-# sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zil_scvi classify_zilionis.sh scvi

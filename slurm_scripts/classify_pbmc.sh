@@ -22,6 +22,19 @@ ulimit -l unlimited
 SCRIPT=${PROJ_ROOT}/src/classification.R
 RUN_ID=${SLURM_ARRAY_TASK_ID}
 METHOD=${1:-baseline}
+
+if [[ "$METHOD" == rff_* ]]; then
+    module load singularity/4.3.2
+    module load cuda/12.8.0
+    SIF=/scratch/zeynepaydin21/containers/r-ver_4.6.0.sif
+    export SINGULARITY_BIND="/scratch/zeynepaydin21/containers/r_libs:/r_libs,/opt/ohpc/pub/compiler/cuda/12.8.0/lib64:/cuda/lib64"
+    export SINGULARITY_NV=1
+    export SINGULARITYENV_LD_LIBRARY_PATH=/cuda/lib64
+    export R_LIBS=/r_libs
+    RUNNER="singularity exec $SIF Rscript"
+else
+    RUNNER="Rscript"
+fi
 N_HVG=2000
 N_DIM_VALUES=(64 128 512 1024 2048)
 LABEL_LEVELS=(l1 l2 l3)
@@ -37,7 +50,7 @@ run_classification() {
     local desc=$4
 
     echo "Running: pbmc, label=$label_level, train=${train_pct}%, $desc"
-    Rscript "$SCRIPT" \
+    $RUNNER "$SCRIPT" \
         -r "$RUN_ID" \
         -d pbmc \
         -t celltype \
@@ -77,15 +90,6 @@ for train_pct in "${ACTIVE_PCTS[@]}"; do
     elif [ "$METHOD" = "scimilarity" ]; then
         run_classification "$label_level" "$train_pct" "-m scimilarity" "method=scimilarity"
 
-    elif [ "$METHOD" = "scvi" ]; then
-        for n_dim in "${N_DIM_VALUES[@]}"; do
-            run_classification "$label_level" "$train_pct" \
-                "-m scvi -n $n_dim --max_epochs 10" \
-                "method=scvi, n_dim=$n_dim, epochs=10"
-            run_classification "$label_level" "$train_pct" \
-                "-m scvi -n $n_dim --max_epochs 100" \
-                "method=scvi, n_dim=$n_dim, epochs=100"
-        done
     fi
 done
 done
@@ -93,8 +97,11 @@ done
 echo "Done. Exit code: $?"
 
 # Submission (8 donors -> exhaustive split, array=1):
-# for method in baseline pca rff_lapl rff_gauss; do
+# for method in baseline pca; do
 #     sbatch --array=1 --job-name=pbmc_$method classify_pbmc.sh $method
+# done
+# for method in rff_lapl rff_gauss; do
+#     sbatch --array=1 --gres=gpu:1 --job-name=pbmc_$method classify_pbmc.sh $method
 # done
 # sbatch --array=1 --gres=gpu:1 --mem=40GB --job-name=pbmc_scimilarity classify_pbmc.sh scimilarity
 # sbatch --array=1 --gres=gpu:1 --job-name=pbmc_scvi classify_pbmc.sh scvi

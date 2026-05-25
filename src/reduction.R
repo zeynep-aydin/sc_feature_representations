@@ -1,4 +1,18 @@
-rff_reduce <- function(X_train, X_test, n_dim, run_id, kernel = "laplacian") {
+.rff_gpu <- function(X_csr, W_mat, n_proj) {
+  X_t <- torch:::torch__sparse_csr_tensor_unsafe(
+    crow_indices = torch::torch_tensor(X_csr@p, dtype = torch::torch_int32()),
+    col_indices = torch::torch_tensor(X_csr@j, dtype = torch::torch_int32()),
+    values = torch::torch_tensor(X_csr@x, dtype = torch::torch_float32()),
+    size = c(nrow(X_csr), ncol(X_csr))
+  )$cuda()
+  W_t <- torch::torch_tensor(W_mat, dtype = torch::torch_float32())$cuda()
+  XW <- torch::torch_mm(X_t, W_t)
+  Z <- sqrt(1 / n_proj) * torch::torch_cat(list(torch::torch_cos(XW), torch::torch_sin(XW)), dim = 2)
+  as.matrix(Z$cpu())
+}
+
+rff_reduce <- function(X_train, X_test, n_dim, run_id, kernel = "laplacian",
+                       use_gpu = FALSE) {
   t_start <- Sys.time()
 
   if (kernel == "laplacian") {
@@ -15,11 +29,6 @@ rff_reduce <- function(X_train, X_test, n_dim, run_id, kernel = "laplacian") {
       matrix(stats::rnorm(n = n_features * n_components, mean = 0, sd = param),
              nrow = n_features, ncol = n_components)
     }
-  }
-
-  n_threads <- as.integer(Sys.getenv("OMP_NUM_THREADS", unset = "1"))
-  if (n_threads > 1 && requireNamespace("RhpcBLASctl", quietly = TRUE)) {
-    RhpcBLASctl::omp_set_num_threads(n_threads)
   }
 
   if (n_dim %% 2 != 0) stop("--n_dim must be even for RFF (output = 2 * n_projections)")
@@ -41,8 +50,13 @@ rff_reduce <- function(X_train, X_test, n_dim, run_id, kernel = "laplacian") {
   W <- generate_W(ncol(X_train), n_proj, sigma_p)
 
   compute_rff <- function(X, W, n_proj) {
-    XW <- as.csr.matrix(X) %*% W
-    sqrt(1 / n_proj) * cbind(cos(XW), sin(XW))
+    X_csr <- as.csr.matrix(X)
+    if (use_gpu) {
+      .rff_gpu(X_csr, W, n_proj)
+    } else {
+      XW <- X_csr %*% W
+      sqrt(1 / n_proj) * cbind(cos(XW), sin(XW))
+    }
   }
 
   list(
@@ -87,11 +101,9 @@ pca_reduce <- function(X_train, X_test, n_dim, run_id) {
   )
 }
 
-scvi_embed <- function(split_info, data_dir, project_root, run_id, n_dim, max_epochs = NULL) {
-  if (is.null(max_epochs)) max_epochs <- 400L
-  log_info("Generating scVI embeddings...")
+scvi_embed <- function(split_info, data_dir, project_root, run_id) {
+  log_info("Generating scVI (pretrained Census) embeddings...")
 
-  reduction_seed <- 3141 + run_id
   temp_dir <- tempdir()
   unique_id <- paste0(run_id, "_", Sys.getpid(), "_", format(Sys.time(), "%Y%m%d_%H%M%S"))
   indices_file    <- file.path(temp_dir, paste0("scvi_indices_", unique_id, ".h5"))
@@ -103,11 +115,13 @@ scvi_embed <- function(split_info, data_dir, project_root, run_id, n_dim, max_ep
   H5close()
 
   python_script_path <- file.path(project_root, "src", "get_scvi_embeddings.py")
+  gene_map_file <- file.path(project_root, "data", "gene_sets", "ensembl_symbol_to_ensembl_id.tsv")
   python_cmd <- sprintf(
-    '$HOME/.conda/envs/scvi/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --n_latent "%d" --max_epochs "%d" --seed "%d" 2>&1',
-    python_script_path, data_dir, indices_file, embeddings_file, n_dim, max_epochs, reduction_seed
+    '$HOME/.conda/envs/scvi/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --gene_map_file "%s" 2>&1',
+    python_script_path, data_dir, indices_file, embeddings_file, gene_map_file
   )
-  system(python_cmd)
+  exit_code <- system(python_cmd)
+  if (exit_code != 0) stop("scVI Python script failed (exit code ", exit_code, ")")
 
   X_train_r <- t(h5read(embeddings_file, "train_embeddings"))
   X_test_r <- t(h5read(embeddings_file, "test_embeddings"))
@@ -118,9 +132,9 @@ scvi_embed <- function(split_info, data_dir, project_root, run_id, n_dim, max_ep
     X_train = X_train_r,
     X_test = X_test_r,
     rff_metadata = NULL,
-    filename_base = paste0("scvi_dim", n_dim, "_ep", max_epochs),
-    expected_dims = n_dim,
-    reduction_seed = reduction_seed,
+    filename_base = "scvi",
+    expected_dims = 50L,
+    reduction_seed = NA_integer_,
     reduction_time = attrs$embedding_time,
     preprocess_time = attrs$preprocess_time
   )
@@ -145,7 +159,8 @@ scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
     '$HOME/.conda/envs/scimilarity/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d" 2>&1',
     python_script_path, data_dir, indices_file, embeddings_file, reduction_seed
   )
-  system(python_cmd)
+  exit_code <- system(python_cmd)
+  if (exit_code != 0) stop("SCimilarity Python script failed (exit code ", exit_code, ")")
 
   X_train_r <- t(h5read(embeddings_file, "train_embeddings"))
   X_test_r <- t(h5read(embeddings_file, "test_embeddings"))
