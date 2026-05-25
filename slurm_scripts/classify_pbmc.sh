@@ -30,6 +30,7 @@ if [[ "$METHOD" == rff_* ]]; then
     export SINGULARITY_BIND="/scratch/zeynepaydin21/containers/r_libs:/r_libs,/opt/ohpc/pub/compiler/cuda/12.8.0/lib64:/cuda/lib64"
     export SINGULARITY_NV=1
     export SINGULARITYENV_LD_LIBRARY_PATH=/cuda/lib64
+    export SINGULARITYENV_PYTHON3=$(which python3)
     export R_LIBS=/r_libs
     RUNNER="singularity exec $SIF Rscript"
 else
@@ -61,7 +62,7 @@ run_classification() {
 }
 
 for label_level in "${LABEL_LEVELS[@]}"; do
-if [ "$label_level" = "l2" ]; then ACTIVE_PCTS=(70 80); else ACTIVE_PCTS=(80); fi # then ACTIVE_PCTS=(50 70 80); else ACTIVE_PCTS=(80); fi
+if [ "$label_level" = "l2" ]; then ACTIVE_PCTS=(50 70 80); else ACTIVE_PCTS=(80); fi
 for train_pct in "${ACTIVE_PCTS[@]}"; do
     if [ "$METHOD" = "baseline" ]; then
         run_classification "$label_level" "$train_pct" "" "baseline"

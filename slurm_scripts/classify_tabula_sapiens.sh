@@ -30,6 +30,7 @@ if [[ "$METHOD" == rff_* ]]; then
     export SINGULARITY_BIND="/scratch/zeynepaydin21/containers/r_libs:/r_libs,/opt/ohpc/pub/compiler/cuda/12.8.0/lib64:/cuda/lib64"
     export SINGULARITY_NV=1
     export SINGULARITYENV_LD_LIBRARY_PATH=/cuda/lib64
+    export SINGULARITYENV_PYTHON3=$(which python3)
     export R_LIBS=/r_libs
     RUNNER="singularity exec $SIF Rscript"
 else
@@ -39,7 +40,7 @@ fi
 TASK_ARG=${2:-both}
 N_HVG=2000
 N_DIM_VALUES=(64 128 512 1024 2048)
-TRAIN_PCTS=(70 80)
+TRAIN_PCTS=(50 70 80)
 if [ "$TASK_ARG" = "both" ]; then TASKS=(celltype tissue); else TASKS=("$TASK_ARG"); fi
 
 echo "Run ID: $RUN_ID  Method: $METHOD"
