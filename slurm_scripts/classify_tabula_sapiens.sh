@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --nodelist=ai[18-26]
 #SBATCH --partition=ai
-#SBATCH --time=15-00
+#SBATCH --time=30-00
 #SBATCH --mem=64G
 #SBATCH --output=slurm_logs/%x-%A_%a.out
 
@@ -82,9 +82,6 @@ for train_pct in "${TRAIN_PCTS[@]}"; do
             run_classification "$task" "$train_pct" \
                 "-m pca -n $n_dim" \
                 "method=pca, n_dim=$n_dim"
-            run_classification "$task" "$train_pct" \
-                "-m pca -n $n_dim --n_hvg $N_HVG" \
-                "method=pca, n_dim=$n_dim, n_hvg=$N_HVG"
         done
 
     # scimilarity: needs ENSEMBL->symbol conversion + 53 duplicate symbol strategy TBD

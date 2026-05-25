@@ -82,9 +82,6 @@ for train_pct in "${ACTIVE_PCTS[@]}"; do
             run_classification "$label_level" "$train_pct" \
                 "-m pca -n $n_dim" \
                 "method=pca, n_dim=$n_dim"
-            run_classification "$label_level" "$train_pct" \
-                "-m pca -n $n_dim --n_hvg $N_HVG" \
-                "method=pca, n_dim=$n_dim, n_hvg=$N_HVG"
         done
 
     elif [ "$METHOD" = "scimilarity" ]; then

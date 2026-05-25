@@ -81,9 +81,6 @@ for train_pct in "${TRAIN_PCTS[@]}"; do
             run_classification "$task" "$train_pct" \
                 "-m pca -n $n_dim" \
                 "method=pca, n_dim=$n_dim"
-            run_classification "$task" "$train_pct" \
-                "-m pca -n $n_dim --n_hvg $N_HVG" \
-                "method=pca, n_dim=$n_dim, n_hvg=$N_HVG"
         done
 
     elif [ "$METHOD" = "scimilarity" ]; then
