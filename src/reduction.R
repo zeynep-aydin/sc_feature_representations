@@ -103,6 +103,7 @@ pca_reduce <- function(X_train, X_test, n_dim, run_id) {
 
 scvi_embed <- function(split_info, data_dir, project_root, run_id) {
   log_info("Generating scVI (pretrained Census) embeddings...")
+  suppressPackageStartupMessages(library(rhdf5))
 
   temp_dir <- tempdir()
   unique_id <- paste0(run_id, "_", Sys.getpid(), "_", format(Sys.time(), "%Y%m%d_%H%M%S"))
@@ -142,6 +143,7 @@ scvi_embed <- function(split_info, data_dir, project_root, run_id) {
 
 scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
   log_info("Generating SCimilarity embeddings...")
+  suppressPackageStartupMessages(library(rhdf5))
 
   reduction_seed <- 4853 + run_id
   temp_dir <- tempdir()

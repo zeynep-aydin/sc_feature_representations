@@ -3,12 +3,10 @@ suppressPackageStartupMessages({
   library(MatrixExtra)
   library(sparseMatrixStats)
   library(qs2)
-  library(rhdf5)
   library(argparse)
   library(RSpectra)
   library(glmnet)
   library(e1071)
-  library(caret)
   library(pROC)
 })
 
@@ -66,18 +64,20 @@ y_train <- all_labels[split_info$train_indices]
 y_test <- all_labels[split_info$test_indices]
 rm(raw)
 
-train_classes <- unique(as.character(y_train))
-test_only <- !(as.character(y_test) %in% train_classes)
-if (any(test_only)) {
-  dropped_types <- sort(unique(as.character(y_test[test_only])))
-  log_info(sprintf("Dropping %d test-only class(es) (no training examples): %s",
-                   length(dropped_types), paste(dropped_types, collapse = ", ")))
-  keep <- which(!test_only)
-  X_test <- X_test[keep, , drop = FALSE]
-  y_test <- droplevels(y_test[keep])
-  split_info$test_indices <- split_info$test_indices[keep]
+train_counts <- table(factor(as.character(y_train), levels = levels(y_train)))
+drop_classes <- names(which(train_counts < 2))
+if (length(drop_classes) > 0) {
+  log_info(sprintf("Dropping %d class(es) with < 2 training examples: %s",
+                   length(drop_classes), paste(sort(drop_classes), collapse = ", ")))
+  train_keep <- !(as.character(y_train) %in% drop_classes)
+  X_train <- X_train[train_keep, , drop = FALSE]
+  y_train <- droplevels(y_train[train_keep])
+  split_info$train_indices <- split_info$train_indices[train_keep]
+  test_keep <- !(as.character(y_test) %in% drop_classes)
+  X_test <- X_test[test_keep, , drop = FALSE]
+  y_test <- droplevels(y_test[test_keep])
+  split_info$test_indices <- split_info$test_indices[test_keep]
 }
-y_train <- droplevels(y_train)
 
 hvg_time <- NULL
 hvg_indices <- NULL
