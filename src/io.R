@@ -26,17 +26,31 @@ make_split <- function(data, labels, batch_labels, train_frac, run_id) {
     n <- length(unique_groups)
 
     if (n <= 20) {
-      # Exhaustive: enumerate all 2^n partitions, pick closest to target fraction
-      best_diff <- Inf
+      # Exhaustive: within frac_tol of target, minimize test-only classes then fraction error.
+      frac_tol <- 0.01
+      don_type_map <- tapply(as.character(labels), batch_labels, unique)
+      best_cov_score <- c(Inf, Inf)
       best_train_don <- NULL
       for (mask in seq_len(2^n - 2)) {
-        train_don <- unique_groups[as.logical(intToBits(mask)[seq_len(n)])]
-        diff <- abs(sum(don_sizes[train_don]) / total - train_frac)
-        if (diff < best_diff) {
-          best_diff <- diff
-          best_train_don <- train_don
+        bits <- as.logical(intToBits(mask)[seq_len(n)])
+        train_don <- unique_groups[bits]
+        frac_err <- abs(sum(don_sizes[train_don]) / total - train_frac)
+        if (frac_err <= frac_tol) {
+          test_don <- unique_groups[!bits]
+          train_types <- unique(unlist(don_type_map[train_don]))
+          test_types <- unique(unlist(don_type_map[test_don]))
+          n_test_only <- length(setdiff(test_types, train_types))
+          score <- c(n_test_only, frac_err)
+          if (score[1] < best_cov_score[1] ||
+              (score[1] == best_cov_score[1] && score[2] < best_cov_score[2])) {
+            best_cov_score <- score
+            best_train_don <- train_don
+          }
         }
       }
+      if (is.null(best_train_don))
+        stop(sprintf("No donor partition within %.0fpp of target fraction %.0f%%",
+                     frac_tol * 100, train_frac * 100))
     } else {
       # Greedy: seed-based random donor permutation, assign smallest donors to test
       don_df <- data.frame(don = names(don_sizes), n = as.integer(don_sizes),

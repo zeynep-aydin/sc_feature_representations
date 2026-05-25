@@ -66,12 +66,18 @@ y_train <- all_labels[split_info$train_indices]
 y_test <- all_labels[split_info$test_indices]
 rm(raw)
 
-missing_train <- setdiff(levels(y_train), unique(y_train))
-missing_test <- setdiff(levels(y_test), unique(y_test))
-if (length(missing_train) > 0)
-  stop(sprintf("Train set missing classes: %s", paste(missing_train, collapse = ", ")))
-if (length(missing_test) > 0)
-  stop(sprintf("Test set missing classes: %s", paste(missing_test, collapse = ", ")))
+train_classes <- unique(as.character(y_train))
+test_only <- !(as.character(y_test) %in% train_classes)
+if (any(test_only)) {
+  dropped_types <- sort(unique(as.character(y_test[test_only])))
+  log_info(sprintf("Dropping %d test-only class(es) (no training examples): %s",
+                   length(dropped_types), paste(dropped_types, collapse = ", ")))
+  keep <- which(!test_only)
+  X_test <- X_test[keep, , drop = FALSE]
+  y_test <- droplevels(y_test[keep])
+  split_info$test_indices <- split_info$test_indices[keep]
+}
+y_train <- droplevels(y_train)
 
 hvg_time <- NULL
 hvg_indices <- NULL
