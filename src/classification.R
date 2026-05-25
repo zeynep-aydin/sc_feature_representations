@@ -14,7 +14,7 @@ suppressPackageStartupMessages({
 
 parser <- ArgumentParser(description = "Classification pipeline")
 parser$add_argument("-r", "--run_id", type = "integer", help = "Run/replicate ID (seeds + split selection)")
-parser$add_argument("-d", "--dataset", choices = c("zilionis_lung", "pbmc"))
+parser$add_argument("-d", "--dataset", choices = c("zilionis_lung", "pbmc", "tabula_sapiens"))
 parser$add_argument("-s", "--train_pct", default = 80L, type = "integer", choices = c(50L, 70L, 80L))
 parser$add_argument("-m", "--method", choices = c("rff_lapl", "rff_gauss", "pca", "scimilarity", "scvi"))
 parser$add_argument("-t", "--task", choices = c("tissue", "celltype"))
