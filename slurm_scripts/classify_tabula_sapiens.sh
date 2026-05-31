@@ -71,10 +71,10 @@ for train_pct in "${TRAIN_PCTS[@]}"; do
     elif [ "$METHOD" = "rff_lapl" ] || [ "$METHOD" = "rff_gauss" ]; then
         for n_dim in "${N_DIM_VALUES[@]}"; do
             run_classification "$task" "$train_pct" \
-                "-m $METHOD -n $n_dim" \
+                "-m $METHOD -n $n_dim --skip_metrics" \
                 "method=$METHOD, n_dim=$n_dim"
             run_classification "$task" "$train_pct" \
-                "-m $METHOD -n $n_dim --n_hvg $N_HVG" \
+                "-m $METHOD -n $n_dim --n_hvg $N_HVG --skip_metrics" \
                 "method=$METHOD, n_dim=$n_dim, n_hvg=$N_HVG"
         done
 
@@ -106,3 +106,6 @@ echo "Done. Exit code: $?"
 # for method in rff_lapl rff_gauss; do
 #     sbatch --array=1 --gres=gpu:1 --job-name=tabula_$method slurm_scripts/classify_tabula_sapiens.sh $method
 # done
+# rff_* runs use --skip_metrics (caret/stringi unavailable in Singularity container).
+# After jobs complete, run outside Singularity:
+#     Rscript analysis/recompute_metrics.R

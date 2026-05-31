@@ -21,6 +21,7 @@ parser$add_argument("-n", "--n_dim", type = "integer", help = "Final output dime
 parser$add_argument("--n_hvg", type = "integer", help = "Top HVGs to select (optional)")
 parser$add_argument("--label_level", choices = c("l1", "l2", "l3"), help = "Label granularity for multi-level datasets (e.g. pbmc)")
 parser$add_argument("--no_gpu", action = "store_true", default = FALSE, help = "Disable GPU for RFF projection")
+parser$add_argument("--skip_metrics", action = "store_true", default = FALSE, help = "Skip compute_metrics (use recompute_metrics.R later)")
 args <- parser$parse_args()
 
 method <- if (!is.null(args$method)) args$method else "baseline"
@@ -159,7 +160,7 @@ preds <- if (args$algorithm == "glmnet") {
 } else {
   predict_svm(fit$model, X_test, y_test)
 }
-metrics <- compute_metrics(preds$pred, preds$prob, y_test)
+metrics <- if (args$skip_metrics) NULL else compute_metrics(preds$pred, preds$prob, y_test)
 
 classification_script_time <- as.numeric(difftime(Sys.time(), preprocess_start, units = "secs"))
 modeling_R_peak_gb <- get_peak_ram_gb()
