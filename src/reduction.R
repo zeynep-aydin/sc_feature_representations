@@ -116,10 +116,10 @@ scvi_embed <- function(split_info, data_dir, project_root, run_id) {
   H5close()
 
   python_script_path <- file.path(project_root, "src", "get_scvi_embeddings.py")
-  gene_map_file <- file.path(project_root, "data", "gene_sets", "ensembl_symbol_to_ensembl_id.tsv")
+  model_dir <- Sys.getenv("SCVI_MODEL_DIR")
   python_cmd <- sprintf(
-    '$HOME/.conda/envs/scvi/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --gene_map_file "%s" 2>&1',
-    python_script_path, data_dir, indices_file, embeddings_file, gene_map_file
+    '$HOME/.conda/envs/scvi/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --model_dir "%s" 2>&1',
+    python_script_path, data_dir, indices_file, embeddings_file, model_dir
   )
   exit_code <- system(python_cmd)
   if (exit_code != 0) stop("scVI Python script failed (exit code ", exit_code, ")")
@@ -157,9 +157,10 @@ scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
   H5close()
 
   python_script_path <- file.path(project_root, "src", "get_scimilarity_embeddings.py")
+  model_dir <- Sys.getenv("SCIMILARITY_MODEL_DIR")
   python_cmd <- sprintf(
-    '$HOME/.conda/envs/scimilarity/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d" 2>&1',
-    python_script_path, data_dir, indices_file, embeddings_file, reduction_seed
+    '$HOME/.conda/envs/scimilarity/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d" --model_dir "%s" 2>&1',
+    python_script_path, data_dir, indices_file, embeddings_file, reduction_seed, model_dir
   )
   exit_code <- system(python_cmd)
   if (exit_code != 0) stop("SCimilarity Python script failed (exit code ", exit_code, ")")
@@ -177,6 +178,7 @@ scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
     expected_dims = 128,
     reduction_seed = reduction_seed,
     reduction_time = attrs$embedding_time,
-    preprocess_time = attrs$preprocess_time
+    preprocess_time = attrs$preprocess_time,
+    lognorm_time = attrs$lognorm_time
   )
 }

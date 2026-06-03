@@ -15,6 +15,8 @@ module load lapack/3.11.0
 
 cd /scratch/zeynepaydin21/sc_feature_representations/
 export PROJ_ROOT=/scratch/zeynepaydin21/sc_feature_representations
+export SCVI_MODEL_DIR=/scratch/zeynepaydin21/scvi
+export SCIMILARITY_MODEL_DIR=/scratch/zeynepaydin21/scimilarity/models/model_v1.1
 
 ulimit -s unlimited
 ulimit -l unlimited
@@ -85,13 +87,11 @@ for train_pct in "${TRAIN_PCTS[@]}"; do
                 "method=pca, n_dim=$n_dim"
         done
 
-    # scimilarity: needs ENSEMBL->symbol conversion + 53 duplicate symbol strategy TBD
-    # elif [ "$METHOD" = "scimilarity" ]; then
-    #     run_classification "$task" "$train_pct" "-m scimilarity" "method=scimilarity"
+    elif [ "$METHOD" = "scimilarity" ]; then
+        run_classification "$task" "$train_pct" "-m scimilarity" "method=scimilarity"
 
-    # scvi: get_scvi_embeddings.py assumes symbol input; tabula_sapiens has ENSEMBL IDs — needs update
-    # elif [ "$METHOD" = "scvi" ]; then
-    #     run_classification "$task" "$train_pct" "-m scvi" "method=scvi"
+    elif [ "$METHOD" = "scvi" ]; then
+        run_classification "$task" "$train_pct" "-m scvi" "method=scvi"
 
     fi
 done
@@ -109,3 +109,4 @@ echo "Done. Exit code: $?"
 # rff_* runs use --skip_metrics (caret/stringi unavailable in Singularity container).
 # After jobs complete, run outside Singularity:
 #     Rscript analysis/recompute_metrics.R
+# sbatch --array=1 --gres=gpu:1 --mem=64G --job-name=tabula_scvi slurm_scripts/classify_tabula_sapiens.sh scvi

@@ -113,6 +113,7 @@ reduction_seed <- NULL
 rff_metadata <- NULL
 filename_base <- "baseline"
 reduction_time <- 0
+lognorm_time <- NULL
 
 if (method != "baseline") {
   result <- if (method == "rff_lapl") {
@@ -141,6 +142,7 @@ if (method != "baseline") {
   reduction_seed <- result$reduction_seed
   reduction_time <- result$reduction_time
   if (!is.null(result$preprocess_time)) preprocess_time <- result$preprocess_time
+  lognorm_time <- result$lognorm_time
 
   log_info(sprintf("Reduction successful: %d x %d", nrow(X_train), ncol(X_train)))
 }
@@ -194,6 +196,7 @@ metadata <- list(
     preprocess_time = preprocess_time,
     hvg_time = hvg_time,
     reduction_time = reduction_time,
+    lognorm_time = lognorm_time,
     model_training_time = fit$model_time,
     predict_time = preds$predict_time,
     classification_script_time = classification_script_time

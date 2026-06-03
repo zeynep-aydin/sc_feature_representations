@@ -29,7 +29,6 @@ extract_row <- function(f) {
     train_pct             = .get(m$args$train_pct),
     n_dim                 = if (!is.null(m$args$n_dim)) m$args$n_dim else if (identical(m$method, "scimilarity")) .get(m$n_features) else NA,
     n_hvg                 = .get(m$args$n_hvg),
-    max_epochs            = if (identical(.get(m$method), "scvi")) .get(m$args$max_epochs) else NA,
     run_id                = .get(m$run_id),
     n_train               = .get(m$n_train),
     n_test                = .get(m$n_test),
@@ -48,6 +47,7 @@ extract_row <- function(f) {
     preprocess_time_s     = .get(m$timing$preprocess_time),
     hvg_time_s            = .get(m$timing$hvg_time),
     reduction_time_s      = .get(m$timing$reduction_time),
+    lognorm_time_s        = .get(m$timing$lognorm_time),
     model_time_s          = .get(m$timing$model_training_time),
     total_time_s          = .get(m$timing$classification_script_time),
     peak_ram_gb           = .get(m$modeling_R_peak_gb),
@@ -70,6 +70,6 @@ write.csv(results, output_path, row.names = FALSE)
 cat(sprintf("Written %d rows to %s\n", nrow(results), output_path))
 
 # Summary table
-cols <- c("dataset", "label_level", "task", "method", "n_dim", "n_hvg", "max_epochs", "run_id", "accuracy", "f1_macro", "auroc")
+cols <- c("dataset", "label_level", "task", "method", "n_dim", "n_hvg", "run_id", "accuracy", "f1_macro", "auroc")
 print(results[order(results$dataset, results$label_level, results$method, results$n_dim), intersect(cols, colnames(results))],
       digits = 4, row.names = FALSE)

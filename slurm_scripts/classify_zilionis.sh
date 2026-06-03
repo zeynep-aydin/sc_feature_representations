@@ -15,6 +15,8 @@ module load lapack/3.11.0
 
 cd /scratch/zeynepaydin21/sc_feature_representations/
 export PROJ_ROOT=/scratch/zeynepaydin21/sc_feature_representations
+export SCVI_MODEL_DIR=/scratch/zeynepaydin21/scvi
+export SCIMILARITY_MODEL_DIR=/scratch/zeynepaydin21/scimilarity/models/model_v1.1
 
 ulimit -s unlimited
 ulimit -l unlimited
@@ -70,10 +72,10 @@ for train_pct in "${TRAIN_PCTS[@]}"; do
     elif [ "$METHOD" = "rff_lapl" ] || [ "$METHOD" = "rff_gauss" ]; then
         for n_dim in "${N_DIM_VALUES[@]}"; do
             run_classification "$task" "$train_pct" \
-                "-m $METHOD -n $n_dim" \
+                "-m $METHOD -n $n_dim --skip_metrics" \
                 "method=$METHOD, n_dim=$n_dim"
             run_classification "$task" "$train_pct" \
-                "-m $METHOD -n $n_dim --n_hvg $N_HVG" \
+                "-m $METHOD -n $n_dim --n_hvg $N_HVG --skip_metrics" \
                 "method=$METHOD, n_dim=$n_dim, n_hvg=$N_HVG"
         done
 
@@ -96,12 +98,15 @@ done
 
 echo "Done. Exit code: $?"
 
-# Submission (single run):
+# Submission:
 # for method in baseline pca; do
-#     sbatch --array=1 --job-name=zil_$method classify_zilionis.sh $method
+#     sbatch --array=1 --job-name=zil_$method slurm_scripts/classify_zilionis.sh $method
 # done
 # for method in rff_lapl rff_gauss; do
-#     sbatch --array=1 --gres=gpu:1 --job-name=zil_$method classify_zilionis.sh $method
+#     sbatch --array=1 --gres=gpu:1 --job-name=zil_$method slurm_scripts/classify_zilionis.sh $method
 # done
-# sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zil_scimilarity classify_zilionis.sh scimilarity
-# sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zil_scvi classify_zilionis.sh scvi
+# rff_* runs use --skip_metrics (caret/stringi unavailable in Singularity container).
+# After jobs complete, run outside Singularity:
+#     Rscript analysis/recompute_metrics.R
+# sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zil_scimilarity slurm_scripts/classify_zilionis.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zil_scvi slurm_scripts/classify_zilionis.sh scvi
