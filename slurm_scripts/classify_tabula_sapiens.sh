@@ -17,6 +17,7 @@ cd /scratch/zeynepaydin21/sc_feature_representations/
 export PROJ_ROOT=/scratch/zeynepaydin21/sc_feature_representations
 export SCVI_MODEL_DIR=/scratch/zeynepaydin21/scvi
 export SCIMILARITY_MODEL_DIR=/scratch/zeynepaydin21/scimilarity/models/model_v1.1
+export GENE_MAP_TSV=${PROJ_ROOT}/data/reference/gene_map_grch38_v114.tsv
 
 ulimit -s unlimited
 ulimit -l unlimited
