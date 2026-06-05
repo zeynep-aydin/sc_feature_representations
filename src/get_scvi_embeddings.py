@@ -3,7 +3,6 @@ import scanpy as sc
 import h5py
 import numpy as np
 import pandas as pd
-import requests
 import torch
 import argparse
 import os
@@ -11,7 +10,6 @@ import resource
 from datetime import datetime
 
 DEFAULT_MODEL_DIR = os.environ.get("SCVI_MODEL_DIR")
-BIOMART_URL = "https://may2025.archive.ensembl.org/biomart/martservice"
 
 
 def parse_arguments():
@@ -28,56 +26,58 @@ def load_indices(filepath):
         return f['train_indices'][:], f['test_indices'][:]
 
 
-def build_symbol_map(model_dir):
-    cache = os.path.join(model_dir, "ensembl_symbol_to_ensembl_id.tsv")
-    if os.path.exists(cache):
-        print(f"Loading gene map from cache: {cache}")
-        df = pd.read_csv(cache, sep="\t", dtype=str)
-        return dict(zip(df["symbol"], df["ensembl_id"]))
-
-    print("Querying Ensembl BioMart for gene symbols (batches of 500)...")
+def load_model_var_names(model_dir):
     ckpt = torch.load(os.path.join(model_dir, "model.pt"), map_location="cpu", weights_only=False)
-    var_names = list(ckpt["var_names"])
-
-    eid_to_sym = {}
-    for i in range(0, len(var_names), 500):
-        batch = var_names[i:i + 500]
-        query = f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE Query>
-<Query virtualSchemaName="default" formatter="TSV" header="1" uniqueRows="1" count="" datasetConfigVersion="0.6">
-  <Dataset name="hsapiens_gene_ensembl" interface="default">
-    <Filter name="ensembl_gene_id" value="{",".join(batch)}"/>
-    <Attribute name="ensembl_gene_id"/>
-    <Attribute name="external_gene_name"/>
-  </Dataset>
-</Query>"""
-        r = requests.post(BIOMART_URL, data={"query": query}, timeout=300)
-        r.raise_for_status()
-        for line in r.text.strip().split("\n")[1:]:
-            parts = line.split("\t")
-            if len(parts) >= 2 and parts[0].strip() and parts[1].strip():
-                eid_to_sym[parts[0].strip()] = parts[1].strip()
-        print(f"  batch {i // 500 + 1}/{-(-len(var_names) // 500)}: {len(eid_to_sym)} symbols so far")
-
-    sym_to_eid = {sym: eid for eid, sym in eid_to_sym.items()} # invert mapping; some symbols may map to multiple ENSEMBL IDs
-    with open(cache, "w") as f:
-        f.write("symbol\tensembl_id\n")
-        for sym, eid in sorted(sym_to_eid.items()):
-            f.write(f"{sym}\t{eid}\n")
-    print(f"Cached gene map -> {cache} ({len(sym_to_eid)} mappings)")
-    return sym_to_eid
+    return list(ckpt["var_names"])
 
 
-def remap_to_ensembl(adata, model_dir):
-    if all(g.startswith("ENSG") for g in list(adata.var_names[:20])):
-        print(f"var_names already ENSEMBL IDs — skipping remap ({adata.n_vars} genes)")
+def load_eid_to_sym():
+    df = pd.read_csv(os.environ["GENE_MAP_TSV"], sep="\t", dtype=str)
+    return dict(zip(df["gene_id"], df["gene_name"]))
+
+
+def remap_to_ensembl(adata, model_var_names, eid_to_sym):
+    """Map the dataset's genes into the model's ENSEMBL namespace.
+
+    If the dataset is already ENSEMBL, strip versions and return it as-is; the
+    intersection with the model is left to prepare_query_anndata. If the dataset
+    is symbols, map each model gene back to its symbol and keep the dataset
+    columns that match, renamed to the model's ENSEMBL IDs.
+    """
+    model_set = set(model_var_names)
+    head = list(adata.var_names[:50])
+
+    if all(g.startswith("ENSG") for g in head):
+        adata.var_names = [g.split(".")[0] for g in adata.var_names]
+        adata.var_names_make_unique()
+        n_overlap = sum(1 for g in adata.var_names if g in model_set)
+        print(f"Input already ENSEMBL ({adata.n_vars} genes); "
+              f"{n_overlap}/{len(model_var_names)} "
+              f"({100 * n_overlap / len(model_var_names):.1f}%) of model genes present")
         return adata
-    sym_to_eid = build_symbol_map(model_dir)
-    mapped = [sym_to_eid.get(g) for g in adata.var_names]
-    valid = [i for i, e in enumerate(mapped) if e is not None]
-    adata = adata[:, valid].copy()
-    adata.var_names = [mapped[i] for i in valid]
-    print(f"Symbol->ENSEMBL: {len(valid)} / {len(mapped)} genes mapped")
+
+    sym_to_col = {}
+    for i, sym in enumerate(adata.var_names):
+        sym_to_col.setdefault(sym, i)  # first dataset column wins per symbol
+
+    cols = []
+    names = []
+    used_syms = set()
+    for eid in model_var_names:
+        sym = eid_to_sym.get(eid.split(".")[0])
+        if sym is None or sym in used_syms:
+            continue
+        col = sym_to_col.get(sym)
+        if col is None:
+            continue
+        cols.append(col)
+        names.append(eid)
+        used_syms.add(sym)
+
+    adata = adata[:, cols].copy()
+    adata.var_names = names
+    print(f"Symbol->ENSEMBL (model-first): {len(names)}/{len(model_var_names)} "
+          f"({100 * len(names) / len(model_var_names):.1f}%) of model genes matched")
     return adata
 
 
@@ -102,14 +102,16 @@ def main():
 
     print("Remapping genes, aligning to model gene set, and loading scVI model...")
     embedding_start = datetime.now()
-    adata = remap_to_ensembl(adata, args.model_dir)
+    model_var_names = load_model_var_names(args.model_dir)
+    eid_to_sym = load_eid_to_sym()
+    adata = remap_to_ensembl(adata, model_var_names, eid_to_sym)
 
     scvi.model.SCVI.prepare_query_anndata(adata, args.model_dir)
     print(f"After prepare_query_anndata: {adata.n_vars} genes")
     if adata.n_vars == 0:
         raise ValueError("prepare_query_anndata produced 0 genes — check ENSEMBL ID format in counts.h5ad")
 
-    adata.obs["batch"] = "query"  # required by model registry (batch_key="batch"), treated as new batch
+    adata.obs["batch"] = "query"
     model = scvi.model.SCVI.load_query_data(adata, args.model_dir, freeze_dropout=True)
     model.is_trained_ = True
 
@@ -130,6 +132,7 @@ def main():
         f.attrs['test_n_features'] = test_embeddings.shape[1]
         f.attrs['data_file'] = data_file
         f.attrs['model_dir'] = args.model_dir
+        f.attrs['gene_map'] = os.environ.get("GENE_MAP_TSV", "")
         f.attrs['n_genes_after_align'] = adata.n_vars
         f.attrs['embedding_time'] = embedding_time
         f.attrs['preprocess_time'] = preprocess_time

@@ -6,13 +6,12 @@ from scimilarity.utils import align_dataset, lognorm_counts
 import h5py
 import numpy as np
 import pandas as pd
-import requests
 import argparse
 import os
 import random
 from datetime import datetime
 
-BIOMART_URL = "https://may2025.archive.ensembl.org/biomart/martservice"
+DEFAULT_MODEL_DIR = os.environ.get("SCIMILARITY_MODEL_DIR")
 
 
 def parse_arguments():
@@ -20,8 +19,8 @@ def parse_arguments():
     parser.add_argument("--data_dir", required=True, help="Path to dataset directory (contains counts.h5ad)")
     parser.add_argument("--indices_file", required=True, help="H5 file containing train/test indices")
     parser.add_argument("--output_file", required=True, help="Output H5 file for embeddings and metadata")
-    parser.add_argument("--model_dir", default=os.environ.get("SCIMILARITY_MODEL_DIR"))
-    parser.add_argument("--seed", type=int)
+    parser.add_argument("--model_dir", default=DEFAULT_MODEL_DIR, help="Local directory containing the SCimilarity model")
+    parser.add_argument("--seed", type=int, default=4853)
     return parser.parse_args()
 
 
@@ -30,54 +29,46 @@ def load_indices(filepath):
         return f['train_indices'][:], f['test_indices'][:]
 
 
-def build_ensembl_to_symbol_map(ensembl_ids, model_dir):
-    cache = os.path.join(model_dir, "ensembl_to_symbol.tsv")
-    if os.path.exists(cache):
-        print(f"Loading ENSEMBL->symbol map from cache: {cache}")
-        df = pd.read_csv(cache, sep="\t", dtype=str)
-        return dict(zip(df["ensembl_id"], df["symbol"]))
-
-    print("Querying Ensembl BioMart for ENSEMBL->symbol (batches of 500)...")
-    eid_to_sym = {}
-    ids = list(ensembl_ids)
-    for i in range(0, len(ids), 500):
-        batch = ids[i:i + 500]
-        query = f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE Query>
-<Query virtualSchemaName="default" formatter="TSV" header="1" uniqueRows="1" count="" datasetConfigVersion="0.6">
-  <Dataset name="hsapiens_gene_ensembl" interface="default">
-    <Filter name="ensembl_gene_id" value="{",".join(batch)}"/>
-    <Attribute name="ensembl_gene_id"/>
-    <Attribute name="external_gene_name"/>
-  </Dataset>
-</Query>"""
-        r = requests.post(BIOMART_URL, data={"query": query}, timeout=300)
-        r.raise_for_status()
-        for line in r.text.strip().split("\n")[1:]:
-            parts = line.split("\t")
-            if len(parts) >= 2 and parts[0].strip() and parts[1].strip():
-                eid_to_sym[parts[0].strip()] = parts[1].strip()
-        if i % 5000 == 0:
-            print(f"  batch {i // 500 + 1}/{-(-len(ids) // 500)}: {len(eid_to_sym)} mapped")
-
-    with open(cache, "w") as f:
-        f.write("ensembl_id\tsymbol\n")
-        for eid, sym in sorted(eid_to_sym.items()):
-            f.write(f"{eid}\t{sym}\n")
-    print(f"Cached ENSEMBL->symbol map -> {cache} ({len(eid_to_sym)} mappings)")
-    return eid_to_sym
+def load_eid_to_sym():
+    df = pd.read_csv(os.environ["GENE_MAP_TSV"], sep="\t", dtype=str)
+    return dict(zip(df["gene_id"], df["gene_name"]))
 
 
-def remap_to_symbols(adata, model_dir):
-    if not all(g.startswith("ENSG") for g in list(adata.var_names[:20])):
-        print(f"var_names don't look like ENSEMBL IDs — skipping remap ({adata.n_vars} genes)")
+def remap_to_symbols(adata, model_gene_order, eid_to_sym):
+    """Match the model's symbols against the dataset.
+
+    Model gene_order is gene symbols. If the dataset is already symbols we
+    hand them straight to align_dataset. If the dataset is ENSEMBL we translate
+    each column to a symbol and keep only the ones the model asks for; columns
+    whose symbol the model never uses are dropped.
+    """
+    model_set = set(model_gene_order)
+    head = list(adata.var_names[:50])
+
+    if not all(g.startswith("ENSG") for g in head):
+        n_overlap = sum(1 for g in adata.var_names if g in model_set)
+        print(f"dataset is symbols ({adata.n_vars} genes); "
+              f"{n_overlap}/{len(model_gene_order)} "
+              f"({100 * n_overlap / len(model_gene_order):.1f}%) of model genes present")
+        if n_overlap == 0:
+            raise ValueError("0 model genes present in dataset — check gene namespace in counts.h5ad")
         return adata
-    eid_to_sym = build_ensembl_to_symbol_map(list(adata.var_names), model_dir)
-    new_names = [eid_to_sym.get(eid, eid) for eid in adata.var_names]
-    n_mapped = sum(1 for n in new_names if not n.startswith("ENSG"))
-    adata.var_names = new_names
-    adata.var_names_make_unique()
-    print(f"ENSEMBL->symbol: {n_mapped}/{len(new_names)} genes mapped; {len(new_names) - n_mapped} kept as ENSEMBL IDs")
+
+    sym_to_col = {}
+    for i, eid in enumerate(adata.var_names):
+        sym = eid_to_sym.get(eid.split(".")[0])
+        if sym is not None and sym in model_set:
+            sym_to_col.setdefault(sym, i)  # first ENSEMBL column wins per symbol
+
+    if not sym_to_col:
+        raise ValueError("0 model genes matched after ENSEMBL->symbol — check gene namespace / gene map")
+
+    cols = list(sym_to_col.values())
+    names = list(sym_to_col.keys())
+    adata = adata[:, cols].copy()
+    adata.var_names = names
+    print(f"ENSEMBL->symbol: {len(names)}/{len(model_gene_order)} "
+          f"({100 * len(names) / len(model_gene_order):.1f}%) of model genes matched")
     return adata
 
 
@@ -95,9 +86,6 @@ def main():
     print("Loading expression matrix...")
     mtx = sc.read(data_file)
     mtx.obs_names_make_unique()
-    mtx_train = mtx[train_indices].copy()
-    mtx_test = mtx[test_indices].copy()
-    del mtx
     preprocess_time = (datetime.now() - preprocess_start).total_seconds()
 
     print("Loading scimilarity model, remapping genes, aligning and log-normalizing...")
@@ -112,11 +100,13 @@ def main():
     ca = CellAnnotation(model_path=args.model_dir, use_gpu=use_gpu)
     print(f"Model device: {next(ca.model.parameters()).device}")
 
-    mtx_train = remap_to_symbols(mtx_train, args.model_dir)
-    mtx_test = remap_to_symbols(mtx_test, args.model_dir)
+    eid_to_sym = load_eid_to_sym()
+    mtx = remap_to_symbols(mtx, ca.gene_order, eid_to_sym)
+    mtx = align_dataset(mtx, ca.gene_order)
 
-    mtx_train = align_dataset(mtx_train, ca.gene_order)
-    mtx_test = align_dataset(mtx_test, ca.gene_order)
+    mtx_train = mtx[train_indices].copy()
+    mtx_test = mtx[test_indices].copy()
+    del mtx
 
     lognorm_start = datetime.now()
     mtx_train.layers["counts"] = mtx_train.X.copy()
@@ -140,6 +130,7 @@ def main():
         f.attrs['test_n_cells'] = test_embeddings.shape[0]
         f.attrs['test_n_features'] = test_embeddings.shape[1]
         f.attrs['data_file'] = data_file
+        f.attrs['gene_map'] = os.environ.get("GENE_MAP_TSV", "")
         f.attrs['embedding_time'] = embedding_time
         f.attrs['lognorm_time'] = lognorm_time
         f.attrs['preprocess_time'] = preprocess_time
