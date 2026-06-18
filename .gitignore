@@ -19,6 +19,8 @@ results/
 logs/
 slurm_scripts/slurm_logs/
 extras/
+analysis/
+raw_data/
 
 # Temporary data files
 *.h5
