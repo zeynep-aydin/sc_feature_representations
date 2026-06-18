@@ -42,7 +42,8 @@ else
 fi
 TASK_ARG=${2:-both}
 N_HVG=2000
-N_DIM_VALUES=(64 128 512 1024 2048)
+PCA_DIMS=(32 64 128 512)
+RFF_DIMS=(2048 1024 512 128)   # highest first
 TRAIN_PCTS=(40 60 80)
 if [ "$TASK_ARG" = "both" ]; then TASKS=(celltype tissue); else TASKS=("$TASK_ARG"); fi
 
@@ -66,13 +67,15 @@ run_classification() {
 }
 
 for task in "${TASKS[@]}"; do
-for train_pct in "${TRAIN_PCTS[@]}"; do
     if [ "$METHOD" = "reference" ]; then
-        run_classification "$task" "$train_pct" "" "reference"
-        run_classification "$task" "$train_pct" "--n_hvg $N_HVG" "reference, n_hvg=$N_HVG"
+        for train_pct in "${TRAIN_PCTS[@]}"; do
+            run_classification "$task" "$train_pct" "" "reference"
+            run_classification "$task" "$train_pct" "--n_hvg $N_HVG" "reference, n_hvg=$N_HVG"
+        done
 
     elif [ "$METHOD" = "rff_lapl" ] || [ "$METHOD" = "rff_gauss" ]; then
-        for n_dim in "${N_DIM_VALUES[@]}"; do
+        for n_dim in "${RFF_DIMS[@]}"; do
+        for train_pct in "${TRAIN_PCTS[@]}"; do
             run_classification "$task" "$train_pct" \
                 "-m $METHOD -n $n_dim" \
                 "method=$METHOD, n_dim=$n_dim"
@@ -80,32 +83,38 @@ for train_pct in "${TRAIN_PCTS[@]}"; do
                 "-m $METHOD -n $n_dim --n_hvg $N_HVG" \
                 "method=$METHOD, n_dim=$n_dim, n_hvg=$N_HVG"
         done
+        done
 
     elif [ "$METHOD" = "pca" ]; then
-        for n_dim in "${N_DIM_VALUES[@]}"; do
+        for n_dim in "${PCA_DIMS[@]}"; do
+        for train_pct in "${TRAIN_PCTS[@]}"; do
             run_classification "$task" "$train_pct" \
                 "-m pca -n $n_dim" \
                 "method=pca, n_dim=$n_dim"
         done
+        done
 
     elif [ "$METHOD" = "scimilarity" ]; then
-        run_classification "$task" "$train_pct" "-m scimilarity" "method=scimilarity"
+        for train_pct in "${TRAIN_PCTS[@]}"; do
+            run_classification "$task" "$train_pct" "-m scimilarity" "method=scimilarity"
+        done
 
     elif [ "$METHOD" = "scvi" ]; then
-        run_classification "$task" "$train_pct" "-m scvi" "method=scvi"
+        for train_pct in "${TRAIN_PCTS[@]}"; do
+            run_classification "$task" "$train_pct" "-m scvi" "method=scvi"
+        done
 
     fi
-done
 done
 
 echo "Done. Exit code: $?"
 
 # Submission (algorithm via ALGO env; default glmnet):
 # for method in reference pca; do
-#     sbatch --array=1-30 --job-name=zil_$method slurm_scripts/classify_zilionis.sh $method
+#     sbatch --array=1 --job-name=zilionis_$method slurm_scripts/classify_zilionis.sh $method
 # done
 # for method in rff_lapl rff_gauss; do
-#     sbatch --array=1-30 --gres=gpu:1 --job-name=zil_$method slurm_scripts/classify_zilionis.sh $method
+#     sbatch --array=1 --gres=gpu:1 --job-name=zilionis_$method slurm_scripts/classify_zilionis.sh $method
 # done
-# sbatch --array=1-30 --gres=gpu:1 --mem=20G --job-name=zil_scimilarity slurm_scripts/classify_zilionis.sh scimilarity
-# sbatch --array=1-30 --gres=gpu:1 --mem=20G --job-name=zil_scvi slurm_scripts/classify_zilionis.sh scvi
+# sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zilionis_scimilarity slurm_scripts/classify_zilionis.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zilionis_scvi slurm_scripts/classify_zilionis.sh scvi

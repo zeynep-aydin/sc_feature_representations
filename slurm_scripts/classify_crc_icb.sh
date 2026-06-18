@@ -26,10 +26,11 @@ SCRIPT=${PROJ_ROOT}/src/classification.R
 RUN_ID=${SLURM_ARRAY_TASK_ID}
 METHOD=${1:-reference}
 ALGO=${ALGO:-glmnet}
-LEVEL=${LEVEL:-celltype}   # celltype label level: celltype (default, MajorCellType 6) | compound (tissue_celltype 12)
+DEFAULT_LEVEL=celltype          # granularity stored in labels.qs (selected with no --label_level flag)
+LEVEL=${LEVEL:-$DEFAULT_LEVEL}  # celltype level: celltype (MajorCellType 6) | compound (tissue_celltype 12)
 
-# celltype is the default label (no flag); compound selects labels_compound.qs
-if [ "$LEVEL" = "celltype" ]; then LEVEL_ARG=""; else LEVEL_ARG="--label_level $LEVEL"; fi
+# default level lives in labels.qs (no flag); any other level selects labels_<level>.qs
+if [ "$LEVEL" = "$DEFAULT_LEVEL" ]; then LEVEL_ARG=""; else LEVEL_ARG="--label_level $LEVEL"; fi
 
 if [[ "$METHOD" == rff_* ]]; then
     module load singularity/4.3.2
@@ -47,7 +48,8 @@ fi
 
 TASK_ARG=${2:-both}
 N_HVG=2000
-N_DIM_VALUES=(64 128 512 1024 2048)
+PCA_DIMS=(32 64 128 512)
+RFF_DIMS=(2048 1024 512 128)   # highest first
 TRAIN_PCTS=(40 60 80)
 if [ "$TASK_ARG" = "both" ]; then TASKS=(celltype tissue); else TASKS=("$TASK_ARG"); fi
 
@@ -78,14 +80,16 @@ run_classification() {
 for task in "${TASKS[@]}"; do
 # tissue is level-independent; only run it once (with the default celltype job) so it
 # isn't duplicated across the compound level job.
-if [ "$task" = "tissue" ] && [ "$LEVEL" != "celltype" ]; then continue; fi
-for train_pct in "${TRAIN_PCTS[@]}"; do
+if [ "$task" = "tissue" ] && [ "$LEVEL" != "$DEFAULT_LEVEL" ]; then continue; fi
     if [ "$METHOD" = "reference" ]; then
-        run_classification "$task" "$train_pct" "" "reference"
-        run_classification "$task" "$train_pct" "--n_hvg $N_HVG" "reference, n_hvg=$N_HVG"
+        for train_pct in "${TRAIN_PCTS[@]}"; do
+            run_classification "$task" "$train_pct" "" "reference"
+            run_classification "$task" "$train_pct" "--n_hvg $N_HVG" "reference, n_hvg=$N_HVG"
+        done
 
     elif [ "$METHOD" = "rff_lapl" ] || [ "$METHOD" = "rff_gauss" ]; then
-        for n_dim in "${N_DIM_VALUES[@]}"; do
+        for n_dim in "${RFF_DIMS[@]}"; do
+        for train_pct in "${TRAIN_PCTS[@]}"; do
             run_classification "$task" "$train_pct" \
                 "-m $METHOD -n $n_dim" \
                 "method=$METHOD, n_dim=$n_dim"
@@ -93,22 +97,28 @@ for train_pct in "${TRAIN_PCTS[@]}"; do
                 "-m $METHOD -n $n_dim --n_hvg $N_HVG" \
                 "method=$METHOD, n_dim=$n_dim, n_hvg=$N_HVG"
         done
+        done
 
     elif [ "$METHOD" = "pca" ]; then
-        for n_dim in "${N_DIM_VALUES[@]}"; do
+        for n_dim in "${PCA_DIMS[@]}"; do
+        for train_pct in "${TRAIN_PCTS[@]}"; do
             run_classification "$task" "$train_pct" \
                 "-m pca -n $n_dim" \
                 "method=pca, n_dim=$n_dim"
         done
+        done
 
     elif [ "$METHOD" = "scimilarity" ]; then
-        run_classification "$task" "$train_pct" "-m scimilarity" "method=scimilarity"
+        for train_pct in "${TRAIN_PCTS[@]}"; do
+            run_classification "$task" "$train_pct" "-m scimilarity" "method=scimilarity"
+        done
 
     elif [ "$METHOD" = "scvi" ]; then
-        run_classification "$task" "$train_pct" "-m scvi" "method=scvi"
+        for train_pct in "${TRAIN_PCTS[@]}"; do
+            run_classification "$task" "$train_pct" "-m scvi" "method=scvi"
+        done
 
     fi
-done
 done
 
 echo "Done. Exit code: $?"
@@ -118,11 +128,11 @@ echo "Done. Exit code: $?"
 # tissue task runs only with LEVEL=celltype (level-independent), so the compound job is celltype-only.
 # for level in celltype compound; do
 #   for method in reference pca; do
-#     sbatch --array=1-30 --export=ALL,LEVEL=$level --job-name=crc_${level}_$method slurm_scripts/classify_crc_icb.sh $method
+#     sbatch --array=1 --export=ALL,LEVEL=$level --job-name=crc_${level}_$method slurm_scripts/classify_crc_icb.sh $method
 #   done
 #   for method in rff_lapl rff_gauss; do
-#     sbatch --array=1-30 --gres=gpu:1 --export=ALL,LEVEL=$level --job-name=crc_${level}_$method slurm_scripts/classify_crc_icb.sh $method
+#     sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=$level --job-name=crc_${level}_$method slurm_scripts/classify_crc_icb.sh $method
 #   done
-#   sbatch --array=1-30 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=$level --job-name=crc_${level}_scimilarity slurm_scripts/classify_crc_icb.sh scimilarity
-#   sbatch --array=1-30 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=$level --job-name=crc_${level}_scvi slurm_scripts/classify_crc_icb.sh scvi
+#   sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=$level --job-name=crc_${level}_scimilarity slurm_scripts/classify_crc_icb.sh scimilarity
+#   sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=$level --job-name=crc_${level}_scvi slurm_scripts/classify_crc_icb.sh scvi
 # done

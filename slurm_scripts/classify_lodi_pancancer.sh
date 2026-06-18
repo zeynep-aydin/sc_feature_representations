@@ -43,7 +43,8 @@ else
 fi
 
 N_HVG=2000
-N_DIM_VALUES=(64 128 512 1024 2048)
+PCA_DIMS=(32 64 128 512)
+RFF_DIMS=(2048 1024 512 128)   # highest first
 TRAIN_PCTS=(40 60 80)
 
 echo "Run ID: $RUN_ID  Dataset: $DATASET  Method: $METHOD  Algorithm: $ALGO"
@@ -65,36 +66,44 @@ run_classification() {
         $extra
 }
 
-for train_pct in "${TRAIN_PCTS[@]}"; do
-    if [ "$METHOD" = "reference" ]; then
+if [ "$METHOD" = "reference" ]; then
+    for train_pct in "${TRAIN_PCTS[@]}"; do
         run_classification "$train_pct" "" "reference"
         run_classification "$train_pct" "--n_hvg $N_HVG" "reference, n_hvg=$N_HVG"
+    done
 
-    elif [ "$METHOD" = "rff_lapl" ] || [ "$METHOD" = "rff_gauss" ]; then
-        for n_dim in "${N_DIM_VALUES[@]}"; do
-            run_classification "$train_pct" \
-                "-m $METHOD -n $n_dim" \
-                "method=$METHOD, n_dim=$n_dim"
-            run_classification "$train_pct" \
-                "-m $METHOD -n $n_dim --n_hvg $N_HVG" \
-                "method=$METHOD, n_dim=$n_dim, n_hvg=$N_HVG"
-        done
+elif [ "$METHOD" = "rff_lapl" ] || [ "$METHOD" = "rff_gauss" ]; then
+    for n_dim in "${RFF_DIMS[@]}"; do
+    for train_pct in "${TRAIN_PCTS[@]}"; do
+        run_classification "$train_pct" \
+            "-m $METHOD -n $n_dim" \
+            "method=$METHOD, n_dim=$n_dim"
+        run_classification "$train_pct" \
+            "-m $METHOD -n $n_dim --n_hvg $N_HVG" \
+            "method=$METHOD, n_dim=$n_dim, n_hvg=$N_HVG"
+    done
+    done
 
-    elif [ "$METHOD" = "pca" ]; then
-        for n_dim in "${N_DIM_VALUES[@]}"; do
-            run_classification "$train_pct" \
-                "-m pca -n $n_dim" \
-                "method=pca, n_dim=$n_dim"
-        done
+elif [ "$METHOD" = "pca" ]; then
+    for n_dim in "${PCA_DIMS[@]}"; do
+    for train_pct in "${TRAIN_PCTS[@]}"; do
+        run_classification "$train_pct" \
+            "-m pca -n $n_dim" \
+            "method=pca, n_dim=$n_dim"
+    done
+    done
 
-    elif [ "$METHOD" = "scimilarity" ]; then
+elif [ "$METHOD" = "scimilarity" ]; then
+    for train_pct in "${TRAIN_PCTS[@]}"; do
         run_classification "$train_pct" "-m scimilarity" "method=scimilarity"
+    done
 
-    elif [ "$METHOD" = "scvi" ]; then
+elif [ "$METHOD" = "scvi" ]; then
+    for train_pct in "${TRAIN_PCTS[@]}"; do
         run_classification "$train_pct" "-m scvi" "method=scvi"
+    done
 
-    fi
-done
+fi
 
 echo "Done. Exit code: $?"
 
@@ -102,11 +111,11 @@ echo "Done. Exit code: $?"
 # DATASET env picks the variant (lodi_pancancer = malignant primary | lodi_pancancer_all = ablation); ALGO env default glmnet.
 # for dataset in lodi_pancancer lodi_pancancer_all; do
 #   for method in reference pca; do
-#     sbatch --array=1-30 --export=ALL,DATASET=$dataset --job-name=${dataset}_$method slurm_scripts/classify_lodi_pancancer.sh $method
+#     sbatch --array=1 --export=ALL,DATASET=$dataset --job-name=${dataset}_$method slurm_scripts/classify_lodi_pancancer.sh $method
 #   done
 #   for method in rff_lapl rff_gauss; do
-#     sbatch --array=1-30 --gres=gpu:1 --export=ALL,DATASET=$dataset --job-name=${dataset}_$method slurm_scripts/classify_lodi_pancancer.sh $method
+#     sbatch --array=1 --gres=gpu:1 --export=ALL,DATASET=$dataset --job-name=${dataset}_$method slurm_scripts/classify_lodi_pancancer.sh $method
 #   done
-#   sbatch --array=1-30 --gres=gpu:1 --mem=128G --export=ALL,DATASET=$dataset --job-name=${dataset}_scimilarity slurm_scripts/classify_lodi_pancancer.sh scimilarity
-#   sbatch --array=1-30 --gres=gpu:1 --mem=128G --export=ALL,DATASET=$dataset --job-name=${dataset}_scvi slurm_scripts/classify_lodi_pancancer.sh scvi
+#   sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,DATASET=$dataset --job-name=${dataset}_scimilarity slurm_scripts/classify_lodi_pancancer.sh scimilarity
+#   sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,DATASET=$dataset --job-name=${dataset}_scvi slurm_scripts/classify_lodi_pancancer.sh scvi
 # done
