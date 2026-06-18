@@ -30,7 +30,9 @@ read_h5ad_col <- function(path, col) {
 
 cat("Reading genes and obs...\n")
 genes <- as.character(h5read(h5ad, "/var/_index"))
-cell_types <- read_h5ad_col(h5ad, "cell_type")
+cell_types <- read_h5ad_col(h5ad, "broad_cell_class")
+cell_types_fine <- read_h5ad_col(h5ad, "cell_type")
+compartments <- read_h5ad_col(h5ad, "compartment")
 donors <- read_h5ad_col(h5ad, "donor_id")
 tissues <- read_h5ad_col(h5ad, "tissue_in_publication")
 n_cells <- length(cell_types)
@@ -42,7 +44,7 @@ x <- as.numeric(h5read(h5ad, "X/data"))
 indices <- as.integer(h5read(h5ad, "X/indices"))
 indptr <- as.integer(h5read(h5ad, "X/indptr"))
 
-# h5ad stores CSR (cells x genes); dgCMatrix is CSC — build as (genes x cells) then transpose
+# h5ad stores CSR (cells x genes); dgCMatrix is CSC, build as (genes x cells) then transpose
 mtx <- t(new("dgCMatrix",
              x = x,
              i = indices,
@@ -54,7 +56,10 @@ rm(x, indices, indptr); gc()
 cat(sprintf("Assembled: %d x %d, NNZ=%d\n", nrow(mtx), ncol(mtx), nnzero(mtx)))
 
 save_dataset(mtx, cell_types, donors, out_dir)
+qs2::qs_save(droplevels(as.factor(cell_types_fine)), file.path(out_dir, "labels_fine.qs"))
+qs2::qs_save(droplevels(as.factor(compartments)), file.path(out_dir, "labels_compartment.qs"))
 qs2::qs_save(as.factor(tissues), file.path(out_dir, "tissue.qs"))
 
-cat("\nCell type counts:\n"); print(table(cell_types))
-cat("\nTissue counts:\n");    print(table(tissues))
+cat("\nBroad cell class counts:\n"); print(table(cell_types))
+cat("\nCompartment counts:\n"); print(table(compartments))
+cat("\nTissue counts:\n"); print(table(tissues))

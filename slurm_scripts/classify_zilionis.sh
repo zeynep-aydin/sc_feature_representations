@@ -17,14 +17,15 @@ cd /scratch/zeynepaydin21/sc_feature_representations/
 export PROJ_ROOT=/scratch/zeynepaydin21/sc_feature_representations
 export SCVI_MODEL_DIR=/scratch/zeynepaydin21/scvi
 export SCIMILARITY_MODEL_DIR=/scratch/zeynepaydin21/scimilarity/models/model_v1.1
-export GENE_MAP_TSV=${PROJ_ROOT}/data/reference/gene_map_grch38_v114.tsv
+export GENE_MAP_TSV=${PROJ_ROOT}/data/gene_map/gene_map_grch38_v114.tsv
 
 ulimit -s unlimited
 ulimit -l unlimited
 
 SCRIPT=${PROJ_ROOT}/src/classification.R
 RUN_ID=${SLURM_ARRAY_TASK_ID}
-METHOD=${1:-baseline}
+METHOD=${1:-reference}
+ALGO=${ALGO:-glmnet}
 
 if [[ "$METHOD" == rff_* ]]; then
     module load singularity/4.3.2
@@ -42,10 +43,10 @@ fi
 TASK_ARG=${2:-both}
 N_HVG=2000
 N_DIM_VALUES=(64 128 512 1024 2048)
-TRAIN_PCTS=(50 70 80)
+TRAIN_PCTS=(40 60 80)
 if [ "$TASK_ARG" = "both" ]; then TASKS=(celltype tissue); else TASKS=("$TASK_ARG"); fi
 
-echo "Run ID: $RUN_ID  Method: $METHOD"
+echo "Run ID: $RUN_ID  Method: $METHOD  Algorithm: $ALGO"
 echo "==============================================================================="
 
 run_classification() {
@@ -59,24 +60,24 @@ run_classification() {
         -r "$RUN_ID" \
         -d zilionis_lung \
         -t "$task" \
-        -a glmnet \
+        -a "$ALGO" \
         -s "$train_pct" \
         $extra
 }
 
 for task in "${TASKS[@]}"; do
 for train_pct in "${TRAIN_PCTS[@]}"; do
-    if [ "$METHOD" = "baseline" ]; then
-        run_classification "$task" "$train_pct" "" "baseline"
-        run_classification "$task" "$train_pct" "--n_hvg $N_HVG" "baseline, n_hvg=$N_HVG"
+    if [ "$METHOD" = "reference" ]; then
+        run_classification "$task" "$train_pct" "" "reference"
+        run_classification "$task" "$train_pct" "--n_hvg $N_HVG" "reference, n_hvg=$N_HVG"
 
     elif [ "$METHOD" = "rff_lapl" ] || [ "$METHOD" = "rff_gauss" ]; then
         for n_dim in "${N_DIM_VALUES[@]}"; do
             run_classification "$task" "$train_pct" \
-                "-m $METHOD -n $n_dim --skip_metrics" \
+                "-m $METHOD -n $n_dim" \
                 "method=$METHOD, n_dim=$n_dim"
             run_classification "$task" "$train_pct" \
-                "-m $METHOD -n $n_dim --n_hvg $N_HVG --skip_metrics" \
+                "-m $METHOD -n $n_dim --n_hvg $N_HVG" \
                 "method=$METHOD, n_dim=$n_dim, n_hvg=$N_HVG"
         done
 
@@ -99,15 +100,12 @@ done
 
 echo "Done. Exit code: $?"
 
-# Submission:
-# for method in baseline pca; do
-#     sbatch --array=1 --job-name=zil_$method slurm_scripts/classify_zilionis.sh $method
+# Submission (algorithm via ALGO env; default glmnet):
+# for method in reference pca; do
+#     sbatch --array=1-30 --job-name=zil_$method slurm_scripts/classify_zilionis.sh $method
 # done
 # for method in rff_lapl rff_gauss; do
-#     sbatch --array=1 --gres=gpu:1 --job-name=zil_$method slurm_scripts/classify_zilionis.sh $method
+#     sbatch --array=1-30 --gres=gpu:1 --job-name=zil_$method slurm_scripts/classify_zilionis.sh $method
 # done
-# rff_* runs use --skip_metrics (caret/stringi unavailable in Singularity container).
-# After jobs complete, run outside Singularity:
-#     Rscript analysis/recompute_metrics.R
-# sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zil_scimilarity slurm_scripts/classify_zilionis.sh scimilarity
-# sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zil_scvi slurm_scripts/classify_zilionis.sh scvi
+# sbatch --array=1-30 --gres=gpu:1 --mem=20G --job-name=zil_scimilarity slurm_scripts/classify_zilionis.sh scimilarity
+# sbatch --array=1-30 --gres=gpu:1 --mem=20G --job-name=zil_scvi slurm_scripts/classify_zilionis.sh scvi

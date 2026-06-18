@@ -8,7 +8,7 @@ mapping without BioMart calls.
 Usage:
     python preprocessing/build_gene_map.py \\
         --gtf raw_data/reference/Homo_sapiens.GRCh38.114.gtf.gz \\
-        --out data/reference/gene_map_grch38_v114.tsv
+        --out data/gene_map/gene_map_grch38_v114.tsv
 """
 
 import argparse

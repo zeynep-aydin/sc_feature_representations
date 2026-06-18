@@ -12,19 +12,18 @@ suppressPackageStartupMessages({
 
 parser <- ArgumentParser(description = "Classification pipeline")
 parser$add_argument("-r", "--run_id", type = "integer", help = "Run/replicate ID (seeds + split selection)")
-parser$add_argument("-d", "--dataset", choices = c("zilionis_lung", "pbmc", "tabula_sapiens"))
-parser$add_argument("-s", "--train_pct", default = 80L, type = "integer", choices = c(50L, 70L, 80L))
+parser$add_argument("-d", "--dataset", choices = c("zilionis_lung", "tabula_sapiens", "lodi_pancancer", "lodi_pancancer_all", "crc_icb"))
+parser$add_argument("-s", "--train_pct", default = 80L, type = "integer", choices = c(40L, 60L, 80L))
 parser$add_argument("-m", "--method", choices = c("rff_lapl", "rff_gauss", "pca", "scimilarity", "scvi"))
 parser$add_argument("-t", "--task", choices = c("tissue", "celltype"))
 parser$add_argument("-a", "--algorithm", default = "glmnet", choices = c("glmnet", "svm"))
 parser$add_argument("-n", "--n_dim", type = "integer", help = "Final output dimensions (RFF uses n_dim/2 internal projections)")
 parser$add_argument("--n_hvg", type = "integer", help = "Top HVGs to select (optional)")
-parser$add_argument("--label_level", choices = c("l1", "l2", "l3"), help = "Label granularity for multi-level datasets (e.g. pbmc)")
+parser$add_argument("--label_level", choices = c("compartment", "fine", "compound"), help = "Alternate label set: tabula_sapiens compartment/fine, crc_icb compound (tissue_celltype)")
 parser$add_argument("--no_gpu", action = "store_true", default = FALSE, help = "Disable GPU for RFF projection")
-parser$add_argument("--skip_metrics", action = "store_true", default = FALSE, help = "Skip compute_metrics (use recompute_metrics.R later)")
 args <- parser$parse_args()
 
-method <- if (!is.null(args$method)) args$method else "baseline"
+method <- if (!is.null(args$method)) args$method else "reference"
 run_id <- args$run_id
 train_frac <- args$train_pct / 100
 project_root <- Sys.getenv("PROJ_ROOT", unset = ".")
@@ -32,7 +31,7 @@ data_dir <- file.path(project_root, "data", args$dataset)
 
 script_dir <- tryCatch(
   normalizePath(dirname(sub("--file=", "", grep("--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))),
-  error = function(e) "dev/src"
+  error = function(e) "src"
 )
 
 source(file.path(script_dir, "utils.R"))
@@ -61,24 +60,12 @@ split_info <- make_split(raw$mtx, raw$labels, raw$batch_labels, train_frac, run_
 X_train <- raw$mtx[split_info$train_indices, , drop = FALSE]
 X_test <- raw$mtx[split_info$test_indices, , drop = FALSE]
 all_labels <- as.factor(raw$labels)
-y_train <- all_labels[split_info$train_indices]
-y_test <- all_labels[split_info$test_indices]
-rm(raw)
 
-train_counts <- table(factor(as.character(y_train), levels = levels(y_train)))
-drop_classes <- names(which(train_counts < 2))
-if (length(drop_classes) > 0) {
-  log_info(sprintf("Dropping %d class(es) with < 2 training examples: %s",
-                   length(drop_classes), paste(sort(drop_classes), collapse = ", ")))
-  train_keep <- !(as.character(y_train) %in% drop_classes)
-  X_train <- X_train[train_keep, , drop = FALSE]
-  y_train <- droplevels(y_train[train_keep])
-  split_info$train_indices <- split_info$train_indices[train_keep]
-  test_keep <- !(as.character(y_test) %in% drop_classes)
-  X_test <- X_test[test_keep, , drop = FALSE]
-  y_test <- droplevels(y_test[test_keep])
-  split_info$test_indices <- split_info$test_indices[test_keep]
-}
+# make_split already restricts the returned indices to split_info$eval_classes
+# droplevels trims the carried-over factor levels to those actually present in each split
+y_train <- droplevels(all_labels[split_info$train_indices])
+y_test <- droplevels(all_labels[split_info$test_indices])
+rm(raw)
 
 hvg_time <- NULL
 hvg_indices <- NULL
@@ -111,11 +98,11 @@ preprocess_time <- as.numeric(difftime(Sys.time(), preprocess_start, units = "se
 ########## PART 2: Dimensionality reduction ##########
 reduction_seed <- NULL
 rff_metadata <- NULL
-filename_base <- "baseline"
+filename_base <- "reference"
 reduction_time <- 0
 lognorm_time <- NULL
 
-if (method != "baseline") {
+if (method != "reference") {
   result <- if (method == "rff_lapl") {
     rff_reduce(X_train, X_test, args$n_dim, run_id, kernel = "laplacian", use_gpu = !args$no_gpu)
   } else if (method == "rff_gauss") {
@@ -162,10 +149,15 @@ preds <- if (args$algorithm == "glmnet") {
 } else {
   predict_svm(fit$model, X_test, y_test)
 }
-metrics <- if (args$skip_metrics) NULL else compute_metrics(preds$pred, preds$prob, y_test)
+metrics <- compute_metrics(preds$pred, preds$prob, y_test)
 
 classification_script_time <- as.numeric(difftime(Sys.time(), preprocess_start, units = "secs"))
 modeling_R_peak_gb <- get_peak_ram_gb()
+
+if (!is.null(metrics))
+  log_info(sprintf("acc=%.4f  f1=%.4f  auroc=%.4f  |  reduce=%.1fs  train=%.1fs  total=%.1fs",
+                   metrics$accuracy, metrics$f1_score, metrics$auroc,
+                   reduction_time, fit$model_time, classification_script_time))
 
 ########## PART 4: Save ##########
 metadata <- list(
@@ -181,7 +173,8 @@ metadata <- list(
   run_id = run_id,
   n_features = ncol(X_test),
   n_train_classes = length(levels(y_train)),
-  n_test_classes = length(levels(y_test)),
+  n_test_classes = length(levels(y_test)),                    # classes macro metrics score over
+  n_eval_classes = length(split_info$eval_classes),           # benchmark universe (>=2 train cells)
   train_sparsity = as.list(calculate_sparsity(X_train)),
   test_sparsity = as.list(calculate_sparsity(X_test)),
   reduction_seed = reduction_seed,
@@ -192,6 +185,7 @@ metadata <- list(
   predicted_classes = preds$pred,
   class_probabilities = preds$prob,
   true_labels = y_test,
+  train_class_counts = table(y_train),
   timing = list(
     preprocess_time = preprocess_time,
     hvg_time = hvg_time,

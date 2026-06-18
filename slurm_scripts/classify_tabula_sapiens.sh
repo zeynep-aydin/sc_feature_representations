@@ -17,14 +17,19 @@ cd /scratch/zeynepaydin21/sc_feature_representations/
 export PROJ_ROOT=/scratch/zeynepaydin21/sc_feature_representations
 export SCVI_MODEL_DIR=/scratch/zeynepaydin21/scvi
 export SCIMILARITY_MODEL_DIR=/scratch/zeynepaydin21/scimilarity/models/model_v1.1
-export GENE_MAP_TSV=${PROJ_ROOT}/data/reference/gene_map_grch38_v114.tsv
+export GENE_MAP_TSV=${PROJ_ROOT}/data/gene_map/gene_map_grch38_v114.tsv
 
 ulimit -s unlimited
 ulimit -l unlimited
 
 SCRIPT=${PROJ_ROOT}/src/classification.R
 RUN_ID=${SLURM_ARRAY_TASK_ID}
-METHOD=${1:-baseline}
+METHOD=${1:-reference}
+ALGO=${ALGO:-glmnet}
+LEVEL=${LEVEL:-broad}   # celltype label level: broad (default, 31) | compartment (6) | fine (121)
+
+# broad is the default celltype label (no flag); other levels select labels_<level>.qs
+if [ "$LEVEL" = "broad" ]; then LEVEL_ARG=""; else LEVEL_ARG="--label_level $LEVEL"; fi
 
 if [[ "$METHOD" == rff_* ]]; then
     module load singularity/4.3.2
@@ -43,10 +48,10 @@ fi
 TASK_ARG=${2:-both}
 N_HVG=2000
 N_DIM_VALUES=(64 128 512 1024 2048)
-TRAIN_PCTS=(50 70 80)
+TRAIN_PCTS=(40 60 80)
 if [ "$TASK_ARG" = "both" ]; then TASKS=(celltype tissue); else TASKS=("$TASK_ARG"); fi
 
-echo "Run ID: $RUN_ID  Method: $METHOD"
+echo "Run ID: $RUN_ID  Method: $METHOD  Algorithm: $ALGO"
 echo "==============================================================================="
 
 run_classification() {
@@ -55,29 +60,37 @@ run_classification() {
     local extra=$3
     local desc=$4
 
-    echo "Running: tabula_sapiens, task=$task, train=${train_pct}%, $desc"
+    # label level applies to celltype only; tissue loads tissue.qs regardless
+    local lvl=""
+    if [ "$task" = "celltype" ]; then lvl="$LEVEL_ARG"; fi
+
+    echo "Running: tabula_sapiens, task=$task, level=$LEVEL, train=${train_pct}%, $desc"
     $RUNNER "$SCRIPT" \
         -r "$RUN_ID" \
         -d tabula_sapiens \
         -t "$task" \
-        -a glmnet \
+        -a "$ALGO" \
         -s "$train_pct" \
+        $lvl \
         $extra
 }
 
 for task in "${TASKS[@]}"; do
+# tissue is level-independent; only run it once (with the default broad job) so it
+# isn't duplicated across the compartment/fine level jobs.
+if [ "$task" = "tissue" ] && [ "$LEVEL" != "broad" ]; then continue; fi
 for train_pct in "${TRAIN_PCTS[@]}"; do
-    if [ "$METHOD" = "baseline" ]; then
-        run_classification "$task" "$train_pct" "" "baseline"
-        run_classification "$task" "$train_pct" "--n_hvg $N_HVG" "baseline, n_hvg=$N_HVG"
+    if [ "$METHOD" = "reference" ]; then
+        run_classification "$task" "$train_pct" "" "reference"
+        run_classification "$task" "$train_pct" "--n_hvg $N_HVG" "reference, n_hvg=$N_HVG"
 
     elif [ "$METHOD" = "rff_lapl" ] || [ "$METHOD" = "rff_gauss" ]; then
         for n_dim in "${N_DIM_VALUES[@]}"; do
             run_classification "$task" "$train_pct" \
-                "-m $METHOD -n $n_dim --skip_metrics" \
+                "-m $METHOD -n $n_dim" \
                 "method=$METHOD, n_dim=$n_dim"
             run_classification "$task" "$train_pct" \
-                "-m $METHOD -n $n_dim --n_hvg $N_HVG --skip_metrics" \
+                "-m $METHOD -n $n_dim --n_hvg $N_HVG" \
                 "method=$METHOD, n_dim=$n_dim, n_hvg=$N_HVG"
         done
 
@@ -100,14 +113,15 @@ done
 
 echo "Done. Exit code: $?"
 
-# Submission (17 donors -> exhaustive split, array=1):
-# for method in baseline pca; do
-#     sbatch --array=1 --job-name=tabula_$method slurm_scripts/classify_tabula_sapiens.sh $method
+# Submission (17 donors -> nested split varies by run_id, use array=1-N).
+# Separate jobs per celltype label level via LEVEL env (broad | compartment | fine); ALGO env default glmnet.
+# tissue task runs only with LEVEL=broad (level-independent), so compartment/fine jobs are celltype-only.
+# for level in broad compartment fine; do
+#   for method in reference pca; do
+#     sbatch --array=1-30 --export=ALL,LEVEL=$level --job-name=tabula_${level}_$method slurm_scripts/classify_tabula_sapiens.sh $method
+#   done
+#   for method in rff_lapl rff_gauss; do
+#     sbatch --array=1-30 --gres=gpu:1 --export=ALL,LEVEL=$level --job-name=tabula_${level}_$method slurm_scripts/classify_tabula_sapiens.sh $method
+#   done
+#   sbatch --array=1-30 --gres=gpu:1 --mem=64G --export=ALL,LEVEL=$level --job-name=tabula_${level}_scvi slurm_scripts/classify_tabula_sapiens.sh scvi
 # done
-# for method in rff_lapl rff_gauss; do
-#     sbatch --array=1 --gres=gpu:1 --job-name=tabula_$method slurm_scripts/classify_tabula_sapiens.sh $method
-# done
-# rff_* runs use --skip_metrics (caret/stringi unavailable in Singularity container).
-# After jobs complete, run outside Singularity:
-#     Rscript analysis/recompute_metrics.R
-# sbatch --array=1 --gres=gpu:1 --mem=64G --job-name=tabula_scvi slurm_scripts/classify_tabula_sapiens.sh scvi

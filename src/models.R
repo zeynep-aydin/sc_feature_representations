@@ -35,10 +35,10 @@ train_svm <- function(X_train, y_train) {
 
 predict_glmnet <- function(model, best_lambda, X_test, y_test) {
   t_start <- Sys.time()
-  pred <- factor(
-    predict(model, newx = X_test, s = best_lambda, type = "class"),
-    levels = levels(y_test)
-  )
+  # Keep the full predicted label (a trained class may be absent from y_test)
+  # Coercing to levels(y_test) would turn such predictions into NA, dropping those cells from the conf matrix and inflating recall
+  # Level alignment is handled in compute_metrics()
+  pred <- as.character(predict(model, newx = X_test, s = best_lambda, type = "class"))
   prob <- predict(model, newx = X_test, s = best_lambda, type = "response")[, , 1]
   list(pred = pred, prob = prob, predict_time = as.numeric(difftime(Sys.time(), t_start, units = "secs")))
 }
