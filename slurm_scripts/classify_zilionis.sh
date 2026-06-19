@@ -50,6 +50,8 @@ if [ "$TASK_ARG" = "both" ]; then TASKS=(celltype tissue); else TASKS=("$TASK_AR
 echo "Run ID: $RUN_ID  Method: $METHOD  Algorithm: $ALGO"
 echo "==============================================================================="
 
+FAILS=0
+
 run_classification() {
     local task=$1
     local train_pct=$2
@@ -64,6 +66,11 @@ run_classification() {
         -a "$ALGO" \
         -s "$train_pct" \
         $extra
+    local status=$?
+    if [ "$status" -ne 0 ]; then
+        echo "FAILED (exit $status): zilionis_lung task=$task train=${train_pct}% $desc"
+        FAILS=$((FAILS + 1))
+    fi
 }
 
 for task in "${TASKS[@]}"; do
@@ -107,14 +114,17 @@ for task in "${TASKS[@]}"; do
     fi
 done
 
-echo "Done. Exit code: $?"
+if [ "$FAILS" -eq 0 ]; then
+    echo "Done. All runs succeeded."
+else
+    echo "Done. $FAILS run(s) FAILED (see FAILED lines above)."
+fi
+exit $(( FAILS > 0 ? 1 : 0 ))
 
 # Submission (algorithm via ALGO env; default glmnet):
-# for method in reference pca; do
-#     sbatch --array=1 --job-name=zilionis_$method slurm_scripts/classify_zilionis.sh $method
-# done
-# for method in rff_lapl rff_gauss; do
-#     sbatch --array=1 --gres=gpu:1 --job-name=zilionis_$method slurm_scripts/classify_zilionis.sh $method
-# done
+# sbatch --array=1 --job-name=zilionis_reference slurm_scripts/classify_zilionis.sh reference
+# sbatch --array=1 --job-name=zilionis_pca slurm_scripts/classify_zilionis.sh pca
+# sbatch --array=1 --gres=gpu:1 --job-name=zilionis_rff_lapl slurm_scripts/classify_zilionis.sh rff_lapl
+# sbatch --array=1 --gres=gpu:1 --job-name=zilionis_rff_gauss slurm_scripts/classify_zilionis.sh rff_gauss
 # sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zilionis_scimilarity slurm_scripts/classify_zilionis.sh scimilarity
 # sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zilionis_scvi slurm_scripts/classify_zilionis.sh scvi

@@ -56,31 +56,46 @@ if [ "$TASK_ARG" = "both" ]; then TASKS=(celltype tissue); else TASKS=("$TASK_AR
 echo "Run ID: $RUN_ID  Method: $METHOD  Algorithm: $ALGO"
 echo "==============================================================================="
 
+FAILS=0
+
 run_classification() {
     local task=$1
     local train_pct=$2
     local extra=$3
     local desc=$4
 
-    # label level applies to celltype only; tissue loads tissue.qs regardless
-    local lvl=""
-    if [ "$task" = "celltype" ]; then lvl="$LEVEL_ARG"; fi
+    # label_level applies to the celltype task only; tissue always loads tissue.qs regardless of LEVEL
+    local label_level_arg=""
+    local level_desc="-"
+    if [ "$task" = "celltype" ]; then
+        label_level_arg="$LEVEL_ARG"
+        level_desc="$LEVEL"
+    fi
 
-    echo "Running: tabula_sapiens, task=$task, level=$LEVEL, train=${train_pct}%, $desc"
+    echo "Running: tabula_sapiens, task=$task, level=$level_desc, train=${train_pct}%, $desc"
     $RUNNER "$SCRIPT" \
         -r "$RUN_ID" \
         -d tabula_sapiens \
         -t "$task" \
         -a "$ALGO" \
         -s "$train_pct" \
-        $lvl \
+        $label_level_arg \
         $extra
+    local status=$?
+    if [ "$status" -ne 0 ]; then
+        echo "FAILED (exit $status): tabula_sapiens task=$task level=$level_desc train=${train_pct}% $desc"
+        FAILS=$((FAILS + 1))
+    fi
 }
 
 for task in "${TASKS[@]}"; do
-# tissue is level-independent; only run it once (with the default broad job) so it
-# isn't duplicated across the compartment/fine level jobs.
-if [ "$task" = "tissue" ] && [ "$LEVEL" != "$DEFAULT_LEVEL" ]; then continue; fi
+    # tissue is level-independent; run it only under the default level so it isn't
+    # duplicated across the compartment/fine jobs. Announce the skip so a level job
+    # that quietly drops tissue is visible in the log, not silent.
+    if [ "$task" = "tissue" ] && [ "$LEVEL" != "$DEFAULT_LEVEL" ]; then
+        echo "Skipping tissue task (level-independent; runs only under LEVEL=$DEFAULT_LEVEL, current LEVEL=$LEVEL)"
+        continue
+    fi
     if [ "$METHOD" = "reference" ]; then
         for train_pct in "${TRAIN_PCTS[@]}"; do
             run_classification "$task" "$train_pct" "" "reference"
@@ -121,17 +136,37 @@ if [ "$task" = "tissue" ] && [ "$LEVEL" != "$DEFAULT_LEVEL" ]; then continue; fi
     fi
 done
 
-echo "Done. Exit code: $?"
+if [ "$FAILS" -eq 0 ]; then
+    echo "Done. All runs succeeded."
+else
+    echo "Done. $FAILS run(s) FAILED (see FAILED lines above)."
+fi
+exit $(( FAILS > 0 ? 1 : 0 ))
 
 # Submission (17 donors -> nested split varies by run_id, use array=1-N).
 # Separate jobs per celltype label level via LEVEL env (broad | compartment | fine); ALGO env default glmnet.
 # tissue task runs only with LEVEL=broad (level-independent), so compartment/fine jobs are celltype-only.
-# for level in broad compartment fine; do
-#   for method in reference pca; do
-#     sbatch --array=1 --export=ALL,LEVEL=$level --job-name=tabula_${level}_$method slurm_scripts/classify_tabula_sapiens.sh $method
-#   done
-#   for method in rff_lapl rff_gauss; do
-#     sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=$level --job-name=tabula_${level}_$method slurm_scripts/classify_tabula_sapiens.sh $method
-#   done
-#   sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=$level --job-name=tabula_${level}_scvi slurm_scripts/classify_tabula_sapiens.sh scvi
-# done
+#
+# LEVEL=broad (default; includes tissue task):
+# sbatch --array=1 --export=ALL,LEVEL=broad --job-name=tabula_broad_reference slurm_scripts/classify_tabula_sapiens.sh reference
+# sbatch --array=1 --export=ALL,LEVEL=broad --job-name=tabula_broad_pca slurm_scripts/classify_tabula_sapiens.sh pca
+# sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=broad --job-name=tabula_broad_rff_lapl slurm_scripts/classify_tabula_sapiens.sh rff_lapl
+# sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=broad --job-name=tabula_broad_rff_gauss slurm_scripts/classify_tabula_sapiens.sh rff_gauss
+# sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=broad --job-name=tabula_broad_scimilarity slurm_scripts/classify_tabula_sapiens.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=broad --job-name=tabula_broad_scvi slurm_scripts/classify_tabula_sapiens.sh scvi
+#
+# LEVEL=compartment (celltype task only):
+# sbatch --array=1 --export=ALL,LEVEL=compartment --job-name=tabula_compartment_reference slurm_scripts/classify_tabula_sapiens.sh reference
+# sbatch --array=1 --export=ALL,LEVEL=compartment --job-name=tabula_compartment_pca slurm_scripts/classify_tabula_sapiens.sh pca
+# sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=compartment --job-name=tabula_compartment_rff_lapl slurm_scripts/classify_tabula_sapiens.sh rff_lapl
+# sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=compartment --job-name=tabula_compartment_rff_gauss slurm_scripts/classify_tabula_sapiens.sh rff_gauss
+# sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=compartment --job-name=tabula_compartment_scimilarity slurm_scripts/classify_tabula_sapiens.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=compartment --job-name=tabula_compartment_scvi slurm_scripts/classify_tabula_sapiens.sh scvi
+#
+# LEVEL=fine (celltype task only):
+# sbatch --array=1 --export=ALL,LEVEL=fine --job-name=tabula_fine_reference slurm_scripts/classify_tabula_sapiens.sh reference
+# sbatch --array=1 --export=ALL,LEVEL=fine --job-name=tabula_fine_pca slurm_scripts/classify_tabula_sapiens.sh pca
+# sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=fine --job-name=tabula_fine_rff_lapl slurm_scripts/classify_tabula_sapiens.sh rff_lapl
+# sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=fine --job-name=tabula_fine_rff_gauss slurm_scripts/classify_tabula_sapiens.sh rff_gauss
+# sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=fine --job-name=tabula_fine_scimilarity slurm_scripts/classify_tabula_sapiens.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=fine --job-name=tabula_fine_scvi slurm_scripts/classify_tabula_sapiens.sh scvi

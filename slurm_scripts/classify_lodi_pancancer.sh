@@ -50,6 +50,8 @@ TRAIN_PCTS=(40 60 80)
 echo "Run ID: $RUN_ID  Dataset: $DATASET  Method: $METHOD  Algorithm: $ALGO"
 echo "==============================================================================="
 
+FAILS=0
+
 run_classification() {
     local train_pct=$1
     local extra=$2
@@ -64,6 +66,11 @@ run_classification() {
         -a "$ALGO" \
         -s "$train_pct" \
         $extra
+    local status=$?
+    if [ "$status" -ne 0 ]; then
+        echo "FAILED (exit $status): $DATASET task=celltype train=${train_pct}% $desc"
+        FAILS=$((FAILS + 1))
+    fi
 }
 
 if [ "$METHOD" = "reference" ]; then
@@ -105,17 +112,28 @@ elif [ "$METHOD" = "scvi" ]; then
 
 fi
 
-echo "Done. Exit code: $?"
+if [ "$FAILS" -eq 0 ]; then
+    echo "Done. All runs succeeded."
+else
+    echo "Done. $FAILS run(s) FAILED (see FAILED lines above)."
+fi
+exit $(( FAILS > 0 ? 1 : 0 ))
 
 # Submission (160 patients -> nested split varies by run_id, use array=1-N).
 # DATASET env picks the variant (lodi_pancancer = malignant primary | lodi_pancancer_all = ablation); ALGO env default glmnet.
-# for dataset in lodi_pancancer lodi_pancancer_all; do
-#   for method in reference pca; do
-#     sbatch --array=1 --export=ALL,DATASET=$dataset --job-name=${dataset}_$method slurm_scripts/classify_lodi_pancancer.sh $method
-#   done
-#   for method in rff_lapl rff_gauss; do
-#     sbatch --array=1 --gres=gpu:1 --export=ALL,DATASET=$dataset --job-name=${dataset}_$method slurm_scripts/classify_lodi_pancancer.sh $method
-#   done
-#   sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,DATASET=$dataset --job-name=${dataset}_scimilarity slurm_scripts/classify_lodi_pancancer.sh scimilarity
-#   sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,DATASET=$dataset --job-name=${dataset}_scvi slurm_scripts/classify_lodi_pancancer.sh scvi
-# done
+#
+# DATASET=lodi_pancancer (malignant primary):
+# sbatch --array=1 --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_reference slurm_scripts/classify_lodi_pancancer.sh reference
+# sbatch --array=1 --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_pca slurm_scripts/classify_lodi_pancancer.sh pca
+# sbatch --array=1 --gres=gpu:1 --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_rff_lapl slurm_scripts/classify_lodi_pancancer.sh rff_lapl
+# sbatch --array=1 --gres=gpu:1 --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_rff_gauss slurm_scripts/classify_lodi_pancancer.sh rff_gauss
+# sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_scimilarity slurm_scripts/classify_lodi_pancancer.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_scvi slurm_scripts/classify_lodi_pancancer.sh scvi
+#
+# DATASET=lodi_pancancer_all (ablation, all cell types):
+# sbatch --array=1 --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_reference slurm_scripts/classify_lodi_pancancer.sh reference
+# sbatch --array=1 --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_pca slurm_scripts/classify_lodi_pancancer.sh pca
+# sbatch --array=1 --gres=gpu:1 --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_rff_lapl slurm_scripts/classify_lodi_pancancer.sh rff_lapl
+# sbatch --array=1 --gres=gpu:1 --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_rff_gauss slurm_scripts/classify_lodi_pancancer.sh rff_gauss
+# sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_scimilarity slurm_scripts/classify_lodi_pancancer.sh scimilarity
+# sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_scvi slurm_scripts/classify_lodi_pancancer.sh scvi
