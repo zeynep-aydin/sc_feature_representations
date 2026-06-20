@@ -48,6 +48,7 @@ fi
 
 TASK_ARG=${2:-both}
 N_HVG=2000
+HVG_ONLY=${HVG_ONLY:-0}  # pca: skip the no-HVG run (already done), submit only --n_hvg
 PCA_DIMS=(32 64 128 512)
 RFF_DIMS=(2048 1024 512 128)   # highest first
 TRAIN_PCTS=(40 60 80)
@@ -117,9 +118,14 @@ for task in "${TASKS[@]}"; do
     elif [ "$METHOD" = "pca" ]; then
         for n_dim in "${PCA_DIMS[@]}"; do
         for train_pct in "${TRAIN_PCTS[@]}"; do
+            if [ "$HVG_ONLY" != "1" ]; then
+                run_classification "$task" "$train_pct" \
+                    "-m pca -n $n_dim" \
+                    "method=pca, n_dim=$n_dim"
+            fi
             run_classification "$task" "$train_pct" \
-                "-m pca -n $n_dim" \
-                "method=pca, n_dim=$n_dim"
+                "-m pca -n $n_dim --n_hvg $N_HVG" \
+                "method=pca, n_dim=$n_dim, n_hvg=$N_HVG"
         done
         done
 
@@ -150,6 +156,7 @@ exit $(( FAILS > 0 ? 1 : 0 ))
 # LEVEL=broad (default; includes tissue task):
 # sbatch --array=1 --export=ALL,LEVEL=broad --job-name=tabula_broad_reference slurm_scripts/classify_tabula_sapiens.sh reference
 # sbatch --array=1 --export=ALL,LEVEL=broad --job-name=tabula_broad_pca slurm_scripts/classify_tabula_sapiens.sh pca
+# sbatch --array=1 --export=ALL,LEVEL=broad,HVG_ONLY=1 --job-name=tabula_broad_pca_hvg slurm_scripts/classify_tabula_sapiens.sh pca  # no-HVG pca already done
 # sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=broad --job-name=tabula_broad_rff_lapl slurm_scripts/classify_tabula_sapiens.sh rff_lapl
 # sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=broad --job-name=tabula_broad_rff_gauss slurm_scripts/classify_tabula_sapiens.sh rff_gauss
 # sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=broad --job-name=tabula_broad_scimilarity slurm_scripts/classify_tabula_sapiens.sh scimilarity
@@ -158,6 +165,7 @@ exit $(( FAILS > 0 ? 1 : 0 ))
 # LEVEL=compartment (celltype task only):
 # sbatch --array=1 --export=ALL,LEVEL=compartment --job-name=tabula_compartment_reference slurm_scripts/classify_tabula_sapiens.sh reference
 # sbatch --array=1 --export=ALL,LEVEL=compartment --job-name=tabula_compartment_pca slurm_scripts/classify_tabula_sapiens.sh pca
+# sbatch --array=1 --export=ALL,LEVEL=compartment,HVG_ONLY=1 --job-name=tabula_compartment_pca_hvg slurm_scripts/classify_tabula_sapiens.sh pca  # no-HVG pca already done
 # sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=compartment --job-name=tabula_compartment_rff_lapl slurm_scripts/classify_tabula_sapiens.sh rff_lapl
 # sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=compartment --job-name=tabula_compartment_rff_gauss slurm_scripts/classify_tabula_sapiens.sh rff_gauss
 # sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=compartment --job-name=tabula_compartment_scimilarity slurm_scripts/classify_tabula_sapiens.sh scimilarity
@@ -166,6 +174,7 @@ exit $(( FAILS > 0 ? 1 : 0 ))
 # LEVEL=fine (celltype task only):
 # sbatch --array=1 --export=ALL,LEVEL=fine --job-name=tabula_fine_reference slurm_scripts/classify_tabula_sapiens.sh reference
 # sbatch --array=1 --export=ALL,LEVEL=fine --job-name=tabula_fine_pca slurm_scripts/classify_tabula_sapiens.sh pca
+# sbatch --array=1 --export=ALL,LEVEL=fine,HVG_ONLY=1 --job-name=tabula_fine_pca_hvg slurm_scripts/classify_tabula_sapiens.sh pca  # no-HVG pca already done
 # sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=fine --job-name=tabula_fine_rff_lapl slurm_scripts/classify_tabula_sapiens.sh rff_lapl
 # sbatch --array=1 --gres=gpu:1 --export=ALL,LEVEL=fine --job-name=tabula_fine_rff_gauss slurm_scripts/classify_tabula_sapiens.sh rff_gauss
 # sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,LEVEL=fine --job-name=tabula_fine_scimilarity slurm_scripts/classify_tabula_sapiens.sh scimilarity

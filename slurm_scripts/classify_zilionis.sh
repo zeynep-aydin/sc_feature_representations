@@ -42,6 +42,7 @@ else
 fi
 TASK_ARG=${2:-both}
 N_HVG=2000
+HVG_ONLY=${HVG_ONLY:-0}  # pca: skip the no-HVG run (already done), submit only --n_hvg
 PCA_DIMS=(32 64 128 512)
 RFF_DIMS=(2048 1024 512 128)   # highest first
 TRAIN_PCTS=(40 60 80)
@@ -95,9 +96,14 @@ for task in "${TASKS[@]}"; do
     elif [ "$METHOD" = "pca" ]; then
         for n_dim in "${PCA_DIMS[@]}"; do
         for train_pct in "${TRAIN_PCTS[@]}"; do
+            if [ "$HVG_ONLY" != "1" ]; then
+                run_classification "$task" "$train_pct" \
+                    "-m pca -n $n_dim" \
+                    "method=pca, n_dim=$n_dim"
+            fi
             run_classification "$task" "$train_pct" \
-                "-m pca -n $n_dim" \
-                "method=pca, n_dim=$n_dim"
+                "-m pca -n $n_dim --n_hvg $N_HVG" \
+                "method=pca, n_dim=$n_dim, n_hvg=$N_HVG"
         done
         done
 
@@ -124,6 +130,7 @@ exit $(( FAILS > 0 ? 1 : 0 ))
 # Submission (algorithm via ALGO env; default glmnet):
 # sbatch --array=1 --job-name=zilionis_reference slurm_scripts/classify_zilionis.sh reference
 # sbatch --array=1 --job-name=zilionis_pca slurm_scripts/classify_zilionis.sh pca
+# sbatch --array=1 --export=ALL,HVG_ONLY=1 --job-name=zilionis_pca_hvg slurm_scripts/classify_zilionis.sh pca  # no-HVG pca already done
 # sbatch --array=1 --gres=gpu:1 --job-name=zilionis_rff_lapl slurm_scripts/classify_zilionis.sh rff_lapl
 # sbatch --array=1 --gres=gpu:1 --job-name=zilionis_rff_gauss slurm_scripts/classify_zilionis.sh rff_gauss
 # sbatch --array=1 --gres=gpu:1 --mem=20G --job-name=zilionis_scimilarity slurm_scripts/classify_zilionis.sh scimilarity

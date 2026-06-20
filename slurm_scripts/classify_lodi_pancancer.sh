@@ -43,6 +43,7 @@ else
 fi
 
 N_HVG=2000
+HVG_ONLY=${HVG_ONLY:-0}  # pca: skip the no-HVG run (already done), submit only --n_hvg
 PCA_DIMS=(32 64 128 512)
 RFF_DIMS=(2048 1024 512 128)   # highest first
 TRAIN_PCTS=(40 60 80)
@@ -94,9 +95,14 @@ elif [ "$METHOD" = "rff_lapl" ] || [ "$METHOD" = "rff_gauss" ]; then
 elif [ "$METHOD" = "pca" ]; then
     for n_dim in "${PCA_DIMS[@]}"; do
     for train_pct in "${TRAIN_PCTS[@]}"; do
+        if [ "$HVG_ONLY" != "1" ]; then
+            run_classification "$train_pct" \
+                "-m pca -n $n_dim" \
+                "method=pca, n_dim=$n_dim"
+        fi
         run_classification "$train_pct" \
-            "-m pca -n $n_dim" \
-            "method=pca, n_dim=$n_dim"
+            "-m pca -n $n_dim --n_hvg $N_HVG" \
+            "method=pca, n_dim=$n_dim, n_hvg=$N_HVG"
     done
     done
 
@@ -125,6 +131,7 @@ exit $(( FAILS > 0 ? 1 : 0 ))
 # DATASET=lodi_pancancer (malignant primary):
 # sbatch --array=1 --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_reference slurm_scripts/classify_lodi_pancancer.sh reference
 # sbatch --array=1 --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_pca slurm_scripts/classify_lodi_pancancer.sh pca
+# sbatch --array=1 --export=ALL,DATASET=lodi_pancancer,HVG_ONLY=1 --job-name=lodi_pancancer_pca_hvg slurm_scripts/classify_lodi_pancancer.sh pca  # no-HVG pca already done
 # sbatch --array=1 --gres=gpu:1 --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_rff_lapl slurm_scripts/classify_lodi_pancancer.sh rff_lapl
 # sbatch --array=1 --gres=gpu:1 --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_rff_gauss slurm_scripts/classify_lodi_pancancer.sh rff_gauss
 # sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,DATASET=lodi_pancancer --job-name=lodi_pancancer_scimilarity slurm_scripts/classify_lodi_pancancer.sh scimilarity
@@ -133,6 +140,7 @@ exit $(( FAILS > 0 ? 1 : 0 ))
 # DATASET=lodi_pancancer_all (ablation, all cell types):
 # sbatch --array=1 --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_reference slurm_scripts/classify_lodi_pancancer.sh reference
 # sbatch --array=1 --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_pca slurm_scripts/classify_lodi_pancancer.sh pca
+# sbatch --array=1 --export=ALL,DATASET=lodi_pancancer_all,HVG_ONLY=1 --job-name=lodi_pancancer_all_pca_hvg slurm_scripts/classify_lodi_pancancer.sh pca  # no-HVG pca already done
 # sbatch --array=1 --gres=gpu:1 --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_rff_lapl slurm_scripts/classify_lodi_pancancer.sh rff_lapl
 # sbatch --array=1 --gres=gpu:1 --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_rff_gauss slurm_scripts/classify_lodi_pancancer.sh rff_gauss
 # sbatch --array=1 --gres=gpu:1 --mem=128G --export=ALL,DATASET=lodi_pancancer_all --job-name=lodi_pancancer_all_scimilarity slurm_scripts/classify_lodi_pancancer.sh scimilarity
