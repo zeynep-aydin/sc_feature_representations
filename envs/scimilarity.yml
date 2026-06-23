@@ -1,0 +1,14 @@
+# Conda env for the `scimilarity` method (get_scimilarity_embeddings.py).
+# Point SCIMILARITY_PYTHON at this env's bin/python.
+# Create with: conda env create -f envs/scimilarity.yml
+name: scimilarity
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - scanpy
+  - leidenalg
+  - python-igraph
+  - pip:
+      - scimilarity==0.4.1   # pulls torch 2.8, numpy 1.26, captum, hnswlib, obonet, tiledb-vector-search

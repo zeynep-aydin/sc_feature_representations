@@ -117,9 +117,11 @@ scvi_embed <- function(split_info, data_dir, project_root, run_id) {
 
   python_script_path <- file.path(project_root, "src", "get_scvi_embeddings.py")
   model_dir <- Sys.getenv("SCVI_MODEL_DIR")
+  if (!nzchar(model_dir)) stop("SCVI_MODEL_DIR is not set — point it at the directory containing the pretrained scVI model (model.pt).")
+  python_bin <- Sys.getenv("SCVI_PYTHON", unset = "python")
   python_cmd <- sprintf(
-    '$HOME/.conda/envs/scvi/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --model_dir "%s" 2>&1',
-    python_script_path, data_dir, indices_file, embeddings_file, model_dir
+    '%s "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --model_dir "%s" 2>&1',
+    python_bin, python_script_path, data_dir, indices_file, embeddings_file, model_dir
   )
   exit_code <- system(python_cmd)
   if (exit_code != 0) stop("scVI Python script failed (exit code ", exit_code, ")")
@@ -158,9 +160,11 @@ scimilarity_embed <- function(split_info, data_dir, project_root, run_id) {
 
   python_script_path <- file.path(project_root, "src", "get_scimilarity_embeddings.py")
   model_dir <- Sys.getenv("SCIMILARITY_MODEL_DIR")
+  if (!nzchar(model_dir)) stop("SCIMILARITY_MODEL_DIR is not set — point it at the directory containing the SCimilarity model.")
+  python_bin <- Sys.getenv("SCIMILARITY_PYTHON", unset = "python")
   python_cmd <- sprintf(
-    '$HOME/.conda/envs/scimilarity/bin/python "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d" --model_dir "%s" 2>&1',
-    python_script_path, data_dir, indices_file, embeddings_file, reduction_seed, model_dir
+    '%s "%s" --data_dir "%s" --indices_file "%s" --output_file "%s" --seed "%d" --model_dir "%s" 2>&1',
+    python_bin, python_script_path, data_dir, indices_file, embeddings_file, reduction_seed, model_dir
   )
   exit_code <- system(python_cmd)
   if (exit_code != 0) stop("SCimilarity Python script failed (exit code ", exit_code, ")")

@@ -32,7 +32,10 @@ def load_model_var_names(model_dir):
 
 
 def load_eid_to_sym():
-    df = pd.read_csv(os.environ["GENE_MAP_TSV"], sep="\t", dtype=str)
+    gene_map = os.environ.get("GENE_MAP_TSV")
+    if not gene_map:
+        raise RuntimeError("GENE_MAP_TSV is not set — point it at the gene_id/gene_name TSV (see preprocessing/build_gene_map.py).")
+    df = pd.read_csv(gene_map, sep="\t", dtype=str)
     return dict(zip(df["gene_id"], df["gene_name"]))
 
 

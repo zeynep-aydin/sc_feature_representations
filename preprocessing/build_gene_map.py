@@ -5,6 +5,10 @@ ENSG version suffix if present), dedupes, and writes a TSV. Used by
 get_scimilarity_embeddings.py and get_scvi_embeddings.py for ENSEMBL<->symbol
 mapping without BioMart calls.
 
+Source GTF (Ensembl GRCh38, release 114):
+    wget -P raw_data/reference/ \\
+        https://ftp.ensembl.org/pub/release-114/gtf/homo_sapiens/Homo_sapiens.GRCh38.114.gtf.gz
+
 Usage:
     python preprocessing/build_gene_map.py \\
         --gtf raw_data/reference/Homo_sapiens.GRCh38.114.gtf.gz \\

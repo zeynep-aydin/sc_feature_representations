@@ -1,0 +1,11 @@
+# Conda env for the `scvi` method (get_scvi_embeddings.py).
+# Point SCVI_PYTHON at this env's bin/python.
+# Create with: conda env create -f envs/scvi.yml
+name: scvi
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - pip
+  - pip:
+      - scvi-tools==1.4.3   # pulls torch 2.11, numpy 2.4, scanpy 1.12, anndata 0.12
