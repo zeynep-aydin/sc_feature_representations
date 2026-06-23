@@ -17,7 +17,8 @@ data/
 experiments/
 results/
 logs/
-slurm_scripts/slurm_logs/
+slurm_scripts/
+slurm_logs/
 extras/
 analysis/
 raw_data/
