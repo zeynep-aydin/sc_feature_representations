@@ -108,3 +108,9 @@ conda env create -f envs/scvi.yml          # then set SCVI_PYTHON=$(conda run -n
 **R:** `Matrix`, `MatrixExtra`, `sparseMatrixStats`, `qs2`, `rhdf5`, `RSpectra`, `glmnet`, `e1071`, `pROC`, `argparse`
 
 **Python:** `scanpy`, `torch`, `h5py`, `numpy`, plus `scimilarity` and `scvi-tools`).
+
+## Contact
+
+For questions about the code or data:
+- Zeynep Aydın: zeynepaydin21@ku.edu.tr
+- Mehmet Gönen: mehmetgonen@ku.edu.tr
