@@ -114,14 +114,23 @@ def main():
     if adata.n_vars == 0:
         raise ValueError("prepare_query_anndata produced 0 genes — check ENSEMBL ID format in counts.h5ad")
 
+    # scVI's encoder is amortized per-cell inference: a cell's latent is
+    # independent of what else is embedded. So embed only the cells this split
+    # uses (train ∪ test) in a single model load 
+    used = np.union1d(train_indices, test_indices)
+    pos = {int(c): i for i, c in enumerate(used)}
+    train_pos = np.array([pos[int(c)] for c in train_indices])
+    test_pos = np.array([pos[int(c)] for c in test_indices])
+
+    adata = adata[used].copy()
     adata.obs["batch"] = "query"
     model = scvi.model.SCVI.load_query_data(adata, args.model_dir, freeze_dropout=True)
     model.is_trained_ = True
 
-    print("Generating embeddings...")
-    all_embeddings = model.get_latent_representation()
-    train_embeddings = all_embeddings[train_indices]
-    test_embeddings = all_embeddings[test_indices]
+    print(f"Generating embeddings...")
+    used_embeddings = model.get_latent_representation()
+    train_embeddings = used_embeddings[train_pos]
+    test_embeddings = used_embeddings[test_pos]
     embedding_time = (datetime.now() - embedding_start).total_seconds()
 
     peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024 * 1024)
